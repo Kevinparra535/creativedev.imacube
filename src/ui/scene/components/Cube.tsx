@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useBox } from "@react-three/cannon";
 import { Html } from "@react-three/drei";
 import { Select } from "@react-three/postprocessing";
 import type { Triplet } from "@react-three/cannon";
-import type { Group, Mesh } from "three";
 import { Euler, Quaternion, Vector3 } from "three";
+import { BubbleEyes, DotEyes } from "../objects";
 import "../../styles/ThoughtBubble.css";
 
 export interface CubeProps {
@@ -13,6 +13,7 @@ export interface CubeProps {
   selected?: boolean;
   hopSignal?: number;
   auto?: boolean;
+  eyeStyle?: "bubble" | "dot";
   onSelect?: (id: string) => void;
   position?: Triplet;
   [key: string]: unknown;
@@ -23,6 +24,7 @@ export default function Cube({
   selected = false,
   hopSignal = 0,
   auto = true,
+  eyeStyle = "bubble",
   onSelect,
   ...props
 }: CubeProps) {
@@ -57,25 +59,8 @@ export default function Cube({
   const tmpEuler = useRef(new Euler(0, 0, 0, "YXZ"));
   const tmpUp = useRef(new Vector3());
 
-  // Eyes state (cartoon expressions)
-  const leftEyeRef = useRef<Group | null>(null);
-  const rightEyeRef = useRef<Group | null>(null);
-  const leftPupilRef = useRef<Mesh | null>(null);
-  const rightPupilRef = useRef<Mesh | null>(null);
-  const leftIrisRef = useRef<Mesh | null>(null);
-  const rightIrisRef = useRef<Mesh | null>(null);
-  const leftSparkRef = useRef<Mesh | null>(null);
-  const rightSparkRef = useRef<Mesh | null>(null);
-  const eyeScale = useRef<[number, number]>([1, 1]);
-  const targetEyeScale = useRef<[number, number]>([1, 1]);
-  const pupilOffset = useRef<[number, number]>([0, 0]);
-  const targetPupilOffset = useRef<[number, number]>([0, 0]);
-  const blink = useRef(1);
-  const targetBlink = useRef(1);
-  const nextBlinkAt = useRef(0);
-
-  // Map thought/phase to eye expression targets
-  useEffect(() => {
+  // Eyes targets derived from thought
+  const { eyeTargetScale, eyeTargetLook } = useMemo(() => {
     const txt = (thought || "").toLowerCase();
     let mood: "neutral" | "prep" | "air" | "land" | "curious" = "neutral";
     if (txt.includes("preparando")) mood = "prep";
@@ -91,24 +76,15 @@ export default function Cube({
 
     switch (mood) {
       case "prep":
-        targetEyeScale.current = [1.2, 0.65];
-        targetPupilOffset.current = [0, -0.04];
-        break;
+        return { eyeTargetScale: [1.2, 0.65] as [number, number], eyeTargetLook: [0, -0.04] as [number, number] };
       case "air":
-        targetEyeScale.current = [1.3, 1.3];
-        targetPupilOffset.current = [0, 0.08];
-        break;
+        return { eyeTargetScale: [1.3, 1.3] as [number, number], eyeTargetLook: [0, 0.08] as [number, number] };
       case "land":
-        targetEyeScale.current = [1.4, 0.5];
-        targetPupilOffset.current = [0.02, -0.06];
-        break;
+        return { eyeTargetScale: [1.4, 0.5] as [number, number], eyeTargetLook: [0.02, -0.06] as [number, number] };
       case "curious":
-        targetEyeScale.current = [1.05, 1];
-        targetPupilOffset.current = [0.08, 0];
-        break;
+        return { eyeTargetScale: [1.05, 1] as [number, number], eyeTargetLook: [0.08, 0] as [number, number] };
       default:
-        targetEyeScale.current = [1, 1];
-        targetPupilOffset.current = [0, 0];
+        return { eyeTargetScale: [1, 1] as [number, number], eyeTargetLook: [0, 0] as [number, number] };
     }
   }, [thought]);
 
@@ -191,74 +167,7 @@ export default function Cube({
     s[2] += (trg[2] - s[2]) * Math.min(1, k * delta);
     if (ref.current) ref.current.scale.set(s[0], s[1], s[2]);
 
-    // Lerp eye scale + pupil offset
-    const ek = 12;
-    eyeScale.current[0] +=
-      (targetEyeScale.current[0] - eyeScale.current[0]) *
-      Math.min(1, ek * delta);
-    eyeScale.current[1] +=
-      (targetEyeScale.current[1] - eyeScale.current[1]) *
-      Math.min(1, ek * delta);
-    pupilOffset.current[0] +=
-      (targetPupilOffset.current[0] - pupilOffset.current[0]) *
-      Math.min(1, ek * delta);
-    pupilOffset.current[1] +=
-      (targetPupilOffset.current[1] - pupilOffset.current[1]) *
-      Math.min(1, ek * delta);
-    // Gentle random blink scheduling
-    if (t >= nextBlinkAt.current) {
-      // Start a blink occasionally
-      if (targetBlink.current === 1) targetBlink.current = 0.1;
-      else targetBlink.current = 1;
-      // Next blink between 2-6s
-      nextBlinkAt.current = t + 2 + Math.random() * 4;
-    }
-    const bk = 20;
-    blink.current +=
-      (targetBlink.current - blink.current) * Math.min(1, bk * delta);
-    if (
-      Math.abs(blink.current - targetBlink.current) < 0.02 &&
-      targetBlink.current < 0.5
-    ) {
-      // Close reached, open back up
-      targetBlink.current = 1;
-    }
-    const [sx, sy] = eyeScale.current;
-    const blinkY = sy * blink.current;
-    if (leftEyeRef.current) leftEyeRef.current.scale.set(sx, blinkY, 1);
-    if (rightEyeRef.current) rightEyeRef.current.scale.set(sx, blinkY, 1);
-    if (leftPupilRef.current)
-      leftPupilRef.current.position.set(
-        pupilOffset.current[0],
-        pupilOffset.current[1],
-        0.005
-      );
-    if (rightPupilRef.current)
-      rightPupilRef.current.position.set(
-        pupilOffset.current[0],
-        pupilOffset.current[1],
-        0.005
-      );
-    // Iris follows pupils slightly for a cute look
-    if (leftIrisRef.current)
-      leftIrisRef.current.position.set(
-        pupilOffset.current[0] * 0.6,
-        pupilOffset.current[1] * 0.6,
-        0.003
-      );
-    if (rightIrisRef.current)
-      rightIrisRef.current.position.set(
-        pupilOffset.current[0] * 0.6,
-        pupilOffset.current[1] * 0.6,
-        0.003
-      );
-    // Spark highlight offsets slightly toward top-right and tracks look a bit
-    const sparkX = 0.045 + pupilOffset.current[0] * 0.3;
-    const sparkY = 0.055 + pupilOffset.current[1] * 0.3;
-    if (leftSparkRef.current)
-      leftSparkRef.current.position.set(sparkX, sparkY, 0.007);
-    if (rightSparkRef.current)
-      rightSparkRef.current.position.set(sparkX, sparkY, 0.007);
+    // Eyes handled by eyes components now
 
     if (lastPhase.current !== phase.current) {
       lastPhase.current = phase.current;
@@ -362,98 +271,12 @@ export default function Cube({
           color={selected ? "#00d8ff" : hovered ? "hotpink" : "gray"}
         />
 
-        {/* Cartoon Bubble Eyes on the +Z face (friendly & cute) */}
-        <group position={[0, 0.12, 0.51]}>
-          {/* Left eye */}
-          <group ref={leftEyeRef} position={[-0.16, 0, 0]}>
-            {/* Outline ring */}
-            <mesh position={[0, 0, 0.001]}>
-              <ringGeometry args={[0.132, 0.145, 40]} />
-              <meshStandardMaterial
-                color="#222222"
-                emissive="#000000"
-                roughness={1}
-                metalness={0}
-              />
-            </mesh>
-            {/* Eye white */}
-            <mesh>
-              <circleGeometry args={[0.14, 40]} />
-              <meshStandardMaterial
-                color="#ffffff"
-                emissive="#ffffff"
-                emissiveIntensity={0.12}
-                roughness={0.3}
-                metalness={0}
-              />
-            </mesh>
-            {/* Iris */}
-            <mesh ref={leftIrisRef} position={[0, 0, 0.003]}>
-              <circleGeometry args={[0.08, 36]} />
-              <meshStandardMaterial
-                color="#66b3ff"
-                emissive="#66b3ff"
-                emissiveIntensity={0.05}
-              />
-            </mesh>
-            {/* Pupil */}
-            <mesh ref={leftPupilRef} position={[0, 0, 0.005]}>
-              <circleGeometry args={[0.045, 28]} />
-              <meshStandardMaterial color="#111111" />
-            </mesh>
-            {/* Highlight */}
-            <mesh ref={leftSparkRef} position={[0.045, 0.055, 0.007]}>
-              <circleGeometry args={[0.02, 16]} />
-              <meshStandardMaterial
-                color="#ffffff"
-                emissive="#ffffff"
-                emissiveIntensity={0.3}
-              />
-            </mesh>
-          </group>
-          {/* Right eye */}
-          <group ref={rightEyeRef} position={[0.16, 0, 0]}>
-            <mesh position={[0, 0, 0.001]}>
-              <ringGeometry args={[0.132, 0.145, 40]} />
-              <meshStandardMaterial
-                color="#222222"
-                emissive="#000000"
-                roughness={1}
-                metalness={0}
-              />
-            </mesh>
-            <mesh>
-              <circleGeometry args={[0.14, 40]} />
-              <meshStandardMaterial
-                color="#ffffff"
-                emissive="#ffffff"
-                emissiveIntensity={0.12}
-                roughness={0.3}
-                metalness={0}
-              />
-            </mesh>
-            <mesh ref={rightIrisRef} position={[0, 0, 0.003]}>
-              <circleGeometry args={[0.08, 36]} />
-              <meshStandardMaterial
-                color="#66b3ff"
-                emissive="#66b3ff"
-                emissiveIntensity={0.05}
-              />
-            </mesh>
-            <mesh ref={rightPupilRef} position={[0, 0, 0.005]}>
-              <circleGeometry args={[0.045, 28]} />
-              <meshStandardMaterial color="#111111" />
-            </mesh>
-            <mesh ref={rightSparkRef} position={[0.045, 0.055, 0.007]}>
-              <circleGeometry args={[0.02, 16]} />
-              <meshStandardMaterial
-                color="#ffffff"
-                emissive="#ffffff"
-                emissiveIntensity={0.3}
-              />
-            </mesh>
-          </group>
-        </group>
+        {/* Eyes on +Z face */}
+        {eyeStyle === "bubble" ? (
+          <BubbleEyes position={[0, 0.12, 0.51]} look={eyeTargetLook} eyeScale={eyeTargetScale} />
+        ) : (
+          <DotEyes position={[0, 0.12, 0.51]} look={eyeTargetLook} eyeScale={eyeTargetScale} />
+        )}
 
         <Html position={[0, 1.4, 0]} occlude={true} transform sprite>
           <div
