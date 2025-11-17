@@ -1,0 +1,63 @@
+.thought-bubble {
+  --bubble-stroke: #111;
+  --bubble-bg: #fffdf5;
+  background: var(--bubble-bg);
+  border: 2px solid var(--bubble-stroke);
+  border-radius: 14px;
+  padding: 8px 12px;
+  box-shadow: 3px 3px 0 var(--bubble-stroke), 0 6px 14px rgba(0, 0, 0, 0.2);
+  font-size: 12px;
+  color: #222;
+  white-space: nowrap;
+  transform: translateY(-6px);
+  position: relative;
+  font-family: "Comic Sans MS", "Comic Neue", system-ui, sans-serif;
+  animation: bubbleWiggle 2.8s ease-in-out infinite;
+}
+
+.thought-text {
+  line-height: 1.2;
+}
+
+.thought-badge {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  background: var(--bubble-stroke);
+  color: #fff;
+  border: 2px solid #111;
+  border-radius: 999px;
+  padding: 2px 6px;
+  font-size: 10px;
+  line-height: 1;
+  box-shadow: 2px 2px 0 #111;
+}
+
+.thought-tail {
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 10px solid var(--bubble-bg);
+  filter: drop-shadow(2px 2px 0 var(--bubble-stroke));
+  margin: 4px auto 0 auto;
+}
+
+.thought--selected {
+  --bubble-stroke: #00d8ff;
+  box-shadow: 0 0 0 2px #111 inset, 0 0 12px rgba(0, 216, 255, 0.65), 3px 3px 0 #111;
+}
+
+.thought--hovered {
+  --bubble-stroke: hotpink;
+}
+
+.thought--default {
+  --bubble-stroke: #111;
+}
+
+@keyframes bubbleWiggle {
+  0% { transform: translateY(-6px) rotate(0deg); }
+  50% { transform: translateY(-5px) rotate(-0.8deg); }
+  100% { transform: translateY(-6px) rotate(0deg); }
+}

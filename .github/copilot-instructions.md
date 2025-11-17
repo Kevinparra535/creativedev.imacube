@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This is a React 19.2 + TypeScript + Vite project using Rolldown as the bundler (via `rolldown-vite` package override). It's configured as a modern ESM-based application with strict TypeScript settings and flat ESLint configuration.
+React 19.2 + TypeScript + Vite (via `rolldown-vite` override). Modern ESM, strict TS, flat ESLint. Includes a Three.js scene powered by React Three Fiber with physics and postprocessing.
 
 ## Key Architecture Decisions
 
@@ -10,6 +10,7 @@ This is a React 19.2 + TypeScript + Vite project using Rolldown as the bundler (
 - **React 19**: Running the latest React with new features like `react-jsx` transform and enhanced StrictMode.
 - **Flat ESLint Config**: Uses the new flat config format (`eslint.config.js`) with `defineConfig` and `globalIgnores` - avoid legacy `.eslintrc` patterns.
 - **TypeScript Project References**: Uses composite config with `tsconfig.app.json` (app code) and `tsconfig.node.json` (build tooling).
+- **3D Scene & Physics**: `@react-three/fiber` + `@react-three/cannon` for physics, `@react-three/drei` helpers, and `@react-three/postprocessing` for outlines/selection.
 
 ## Development Workflows
 
@@ -31,6 +32,11 @@ The build runs TypeScript compilation first (`tsc -b`) before Vite build - both 
 - **Verbatim Module Syntax**: `verbatimModuleSyntax: true` requires explicit `type` imports - use `import type { ... }` for types
 - **Target**: ES2022 features available (top-level await, class fields, etc.)
 
+Project-specific TS patterns used in 3D scene:
+- Use `useRef` to store animation/physics state between frames (phases, timers, target scales).
+- Subscribe to Cannon `api.position/velocity` inside `useEffect`, not at render time.
+- Use numeric hex for postprocessing colors (e.g., `visibleEdgeColor={0xffffff}`).
+
 ## Code Conventions
 
 ### Import Patterns
@@ -49,6 +55,26 @@ import publicAsset from '/public-asset.svg'  // Public folder assets use /
 - **Styles**: Component-level CSS files (e.g., `App.css`) co-located with components
 - **Assets**: Component assets in `src/assets/`, public static files in `public/`
 
+### R3F Scene Structure (3D)
+- **Scene file**: `src/ui/scene/R3FCanvas.tsx`
+- **Sandbox geometry**: 6 `Plane` bodies forming a closed cube; `Cube` bodies inside.
+- **Physics config**: `Physics` node with `gravity`, `defaultContactMaterial` (tuned `restitution`, `friction`, `contactEquationRelaxation` for springy collisions).
+- **Materials**: Dynamic restitution/friction on cubes/planes to achieve bouncy, “gel-like” feel.
+- **Postprocessing**: `EffectComposer` + `Outline` for hover/selection highlight.
+
+### Interaction & Animation Pattern
+- **Selection**: Parent tracks `selectedId` and passes `selected` + `onSelect` to each `Cube`. Click selects; click vacío (`onPointerMissed`) deselecciona.
+- **Manual hop test**: Parent listens to `Space` and increments a `hopSignal` counter; `Cube` detects changes to trigger jump when `selected`.
+- **Squash & Stretch**: `Cube` uses `useFrame` to lerp `scale` toward phase targets:
+	- Pre-salto: `[1.25, 0.75, 1.25]`
+	- En aire: `[0.9, 1.1, 0.9]`
+	- Aterrizaje: `[1.3, 0.7, 1.3]` → luego ` [1,1,1]`
+- **Impulso físico**: `api.applyImpulse([dx, 3.2, dz], [0,0,0])` con `dx/dz` aleatorios (en modo auto) o sólo al presionar espacio (modo test).
+- **Best practices**:
+	- No mutar variables locales después del render; usar `useRef` + `useFrame`.
+	- Evitar suscripciones en render; mover a `useEffect` y limpiar (`unsub()`).
+	- `Select` de postprocessing requiere `enabled={boolean}` (no `null`).
+
 ## ESLint Configuration
 
 Uses flat config with these plugins:
@@ -65,6 +91,10 @@ Uses flat config with these plugins:
 - **Fast Refresh**: Uses Babel-based Fast Refresh via `@vitejs/plugin-react` (not SWC variant).
 - **File Extensions**: TypeScript files use `.tsx` for components, `.ts` for utilities.
 - **Public Folder**: Reference public assets with leading `/` (e.g., `/vite.svg` maps to `public/vite.svg`).
+- **R3F typing tips**:
+	- `Outline.visibleEdgeColor` is a number (e.g., `0xffffff`), not string.
+	- Prefer `hovered: boolean` for `Select.enabled`.
+	- Keep `useFrame((state, delta) => ...)` side-effectful (scale, impulses), not stateful.
 
 ## When Extending the Project
 
@@ -72,3 +102,11 @@ Uses flat config with these plugins:
 - For type-aware linting, user can upgrade to `recommendedTypeChecked` config (see README.md)
 - New dependencies should be compatible with React 19 and Vite 5+ ecosystem
 - Maintain ESM-only architecture (`"type": "module"` in package.json)
+
+### Examples to Follow
+- File: `src/ui/scene/R3FCanvas.tsx`
+	- Physics setup: `Physics` props and `Plane`/`Cube` bodies
+	- Interaction: `selectedId`, `hopSignal`, `onPointerMissed`, `onSelect`
+	- Animation: `useFrame` scale lerp, `applyImpulse` for jump
+
+If adding new organisms or motions, reuse the pattern: drive phase/target via refs, schedule impulses, lerp visuals in `useFrame`, subscribe to Cannon in `useEffect`.
