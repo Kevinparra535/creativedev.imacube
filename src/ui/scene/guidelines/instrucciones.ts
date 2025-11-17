@@ -115,6 +115,7 @@ export const DEFAULT_BOOK_EFFECTS: Record<KnowledgeDomain, Omit<BookSpec, "domai
   art: { affect: { emotion: "happy", knowledgeGain: 1 } },
   music: { affect: { emotion: "happy", knowledgeGain: 1 } },
   nature: { affect: { emotion: "curious", knowledgeGain: 1 } },
+  self_awareness: { affect: { emotion: "curious", knowledgeGain: 3 } },
 };
 
 // ────────────────────────────────────────────────────────────────

@@ -3,9 +3,9 @@ import styled from "styled-components";
 export const Footer = styled.footer`
   position: fixed;
   bottom: 0;
-  left: 0;
-  right: 320px; /* Leave space for the sidebar */
-  height: 400px; /* Increased height for ReactFlow */
+  left: 400px; /* Leave space for chat aside */
+  right: 0;
+  height: 450px;
   background: rgba(20, 20, 30, 0.95);
   backdrop-filter: blur(10px);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
@@ -13,11 +13,14 @@ export const Footer = styled.footer`
   z-index: 1000;
   font-family: system-ui, -apple-system, sans-serif;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 `;
 
 export const FlowContainer = styled.div`
+  flex: 1;
   width: 100%;
-  height: 100%;
+  min-height: 0;
 
   /* ReactFlow custom theme for dark mode */
   .react-flow__node {

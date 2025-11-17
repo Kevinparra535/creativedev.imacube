@@ -9,6 +9,7 @@ import {
   Panel,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import CubeList from "./CubeList";
 import type { CubeData } from "./CubeList";
 import {
   Footer,
@@ -49,9 +50,10 @@ type FooterCube = CubeData & {
 interface CubeFooterProps {
   cubes: FooterCube[];
   selectedId: string | null;
+  onSelect: (id: string) => void;
 }
 
-export default function CubeFooter({ cubes, selectedId }: CubeFooterProps) {
+export default function CubeFooter({ cubes, selectedId, onSelect }: CubeFooterProps) {
   const selectedCube = useMemo(
     () => cubes.find((c) => c.id === selectedId),
     [cubes, selectedId]
@@ -494,19 +496,11 @@ export default function CubeFooter({ cubes, selectedId }: CubeFooterProps) {
     // Allow edge interactions but don't persist changes
   }, []);
 
-  if (!selectedCube) {
-    return (
-      <Footer>
-        <EmptyState>
-          <p>Selecciona un cubo para ver su información</p>
-        </EmptyState>
-      </Footer>
-    );
-  }
-
   return (
     <Footer>
-      <FlowContainer>
+      <CubeList cubes={cubes} selectedId={selectedId} onSelect={onSelect} />
+      {selectedCube ? (
+        <FlowContainer>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -533,6 +527,11 @@ export default function CubeFooter({ cubes, selectedId }: CubeFooterProps) {
           </Panel>
         </ReactFlow>
       </FlowContainer>
+      ) : (
+        <EmptyState>
+          <p>Selecciona un cubo para ver su información</p>
+        </EmptyState>
+      )}
     </Footer>
   );
 }
