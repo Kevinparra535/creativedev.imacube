@@ -62,10 +62,17 @@ export default function Cube({
   const rightEyeRef = useRef<Group | null>(null);
   const leftPupilRef = useRef<Mesh | null>(null);
   const rightPupilRef = useRef<Mesh | null>(null);
+  const leftIrisRef = useRef<Mesh | null>(null);
+  const rightIrisRef = useRef<Mesh | null>(null);
+  const leftSparkRef = useRef<Mesh | null>(null);
+  const rightSparkRef = useRef<Mesh | null>(null);
   const eyeScale = useRef<[number, number]>([1, 1]);
   const targetEyeScale = useRef<[number, number]>([1, 1]);
   const pupilOffset = useRef<[number, number]>([0, 0]);
   const targetPupilOffset = useRef<[number, number]>([0, 0]);
+  const blink = useRef(1);
+  const targetBlink = useRef(1);
+  const nextBlinkAt = useRef(0);
 
   // Map thought/phase to eye expression targets
   useEffect(() => {
@@ -198,9 +205,28 @@ export default function Cube({
     pupilOffset.current[1] +=
       (targetPupilOffset.current[1] - pupilOffset.current[1]) *
       Math.min(1, ek * delta);
+    // Gentle random blink scheduling
+    if (t >= nextBlinkAt.current) {
+      // Start a blink occasionally
+      if (targetBlink.current === 1) targetBlink.current = 0.1;
+      else targetBlink.current = 1;
+      // Next blink between 2-6s
+      nextBlinkAt.current = t + 2 + Math.random() * 4;
+    }
+    const bk = 20;
+    blink.current +=
+      (targetBlink.current - blink.current) * Math.min(1, bk * delta);
+    if (
+      Math.abs(blink.current - targetBlink.current) < 0.02 &&
+      targetBlink.current < 0.5
+    ) {
+      // Close reached, open back up
+      targetBlink.current = 1;
+    }
     const [sx, sy] = eyeScale.current;
-    if (leftEyeRef.current) leftEyeRef.current.scale.set(sx, sy, 1);
-    if (rightEyeRef.current) rightEyeRef.current.scale.set(sx, sy, 1);
+    const blinkY = sy * blink.current;
+    if (leftEyeRef.current) leftEyeRef.current.scale.set(sx, blinkY, 1);
+    if (rightEyeRef.current) rightEyeRef.current.scale.set(sx, blinkY, 1);
     if (leftPupilRef.current)
       leftPupilRef.current.position.set(
         pupilOffset.current[0],
@@ -213,6 +239,26 @@ export default function Cube({
         pupilOffset.current[1],
         0.005
       );
+    // Iris follows pupils slightly for a cute look
+    if (leftIrisRef.current)
+      leftIrisRef.current.position.set(
+        pupilOffset.current[0] * 0.6,
+        pupilOffset.current[1] * 0.6,
+        0.003
+      );
+    if (rightIrisRef.current)
+      rightIrisRef.current.position.set(
+        pupilOffset.current[0] * 0.6,
+        pupilOffset.current[1] * 0.6,
+        0.003
+      );
+    // Spark highlight offsets slightly toward top-right and tracks look a bit
+    const sparkX = 0.045 + pupilOffset.current[0] * 0.3;
+    const sparkY = 0.055 + pupilOffset.current[1] * 0.3;
+    if (leftSparkRef.current)
+      leftSparkRef.current.position.set(sparkX, sparkY, 0.007);
+    if (rightSparkRef.current)
+      rightSparkRef.current.position.set(sparkX, sparkY, 0.007);
 
     if (lastPhase.current !== phase.current) {
       lastPhase.current = phase.current;
@@ -313,39 +359,98 @@ export default function Cube({
       >
         <boxGeometry />
         <meshStandardMaterial
-          color={selected ? "#00d8ff" : hovered ? "hotpink" : "orange"}
+          color={selected ? "#00d8ff" : hovered ? "hotpink" : "gray"}
         />
 
-        {/* Cartoon eyes on the +Z face (follow cube rotation) */}
+        {/* Cartoon Bubble Eyes on the +Z face (friendly & cute) */}
         <group position={[0, 0.12, 0.51]}>
           {/* Left eye */}
-          <group ref={leftEyeRef} position={[-0.18, 0, 0]}>
+          <group ref={leftEyeRef} position={[-0.16, 0, 0]}>
+            {/* Outline ring */}
+            <mesh position={[0, 0, 0.001]}>
+              <ringGeometry args={[0.132, 0.145, 40]} />
+              <meshStandardMaterial
+                color="#222222"
+                emissive="#000000"
+                roughness={1}
+                metalness={0}
+              />
+            </mesh>
+            {/* Eye white */}
             <mesh>
-              <circleGeometry args={[0.12, 24]} />
+              <circleGeometry args={[0.14, 40]} />
               <meshStandardMaterial
                 color="#ffffff"
                 emissive="#ffffff"
-                emissiveIntensity={0.2}
+                emissiveIntensity={0.12}
+                roughness={0.3}
+                metalness={0}
               />
             </mesh>
+            {/* Iris */}
+            <mesh ref={leftIrisRef} position={[0, 0, 0.003]}>
+              <circleGeometry args={[0.08, 36]} />
+              <meshStandardMaterial
+                color="#66b3ff"
+                emissive="#66b3ff"
+                emissiveIntensity={0.05}
+              />
+            </mesh>
+            {/* Pupil */}
             <mesh ref={leftPupilRef} position={[0, 0, 0.005]}>
-              <circleGeometry args={[0.05, 20]} />
+              <circleGeometry args={[0.045, 28]} />
               <meshStandardMaterial color="#111111" />
+            </mesh>
+            {/* Highlight */}
+            <mesh ref={leftSparkRef} position={[0.045, 0.055, 0.007]}>
+              <circleGeometry args={[0.02, 16]} />
+              <meshStandardMaterial
+                color="#ffffff"
+                emissive="#ffffff"
+                emissiveIntensity={0.3}
+              />
             </mesh>
           </group>
           {/* Right eye */}
-          <group ref={rightEyeRef} position={[0.18, 0, 0]}>
+          <group ref={rightEyeRef} position={[0.16, 0, 0]}>
+            <mesh position={[0, 0, 0.001]}>
+              <ringGeometry args={[0.132, 0.145, 40]} />
+              <meshStandardMaterial
+                color="#222222"
+                emissive="#000000"
+                roughness={1}
+                metalness={0}
+              />
+            </mesh>
             <mesh>
-              <circleGeometry args={[0.12, 24]} />
+              <circleGeometry args={[0.14, 40]} />
               <meshStandardMaterial
                 color="#ffffff"
                 emissive="#ffffff"
-                emissiveIntensity={0.2}
+                emissiveIntensity={0.12}
+                roughness={0.3}
+                metalness={0}
+              />
+            </mesh>
+            <mesh ref={rightIrisRef} position={[0, 0, 0.003]}>
+              <circleGeometry args={[0.08, 36]} />
+              <meshStandardMaterial
+                color="#66b3ff"
+                emissive="#66b3ff"
+                emissiveIntensity={0.05}
               />
             </mesh>
             <mesh ref={rightPupilRef} position={[0, 0, 0.005]}>
-              <circleGeometry args={[0.05, 20]} />
+              <circleGeometry args={[0.045, 28]} />
               <meshStandardMaterial color="#111111" />
+            </mesh>
+            <mesh ref={rightSparkRef} position={[0.045, 0.055, 0.007]}>
+              <circleGeometry args={[0.02, 16]} />
+              <meshStandardMaterial
+                color="#ffffff"
+                emissive="#ffffff"
+                emissiveIntensity={0.3}
+              />
             </mesh>
           </group>
         </group>
