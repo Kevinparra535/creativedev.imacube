@@ -1,73 +1,54 @@
-# React + TypeScript + Vite
+# creativedev.imacube
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Interactive R3F sandbox with bouncy physics, thought bubbles, cartoon eyes, and self-righting cubes.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- React 19 + TypeScript 5 + Vite (with `rolldown-vite` override)
+- React Three Fiber + Drei + Postprocessing
+- Cannon physics via `@react-three/cannon`
+- Flat ESLint, strict TS, ESM-only
 
-## React Compiler
+## Quick Start
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```pwsh
+npm install
+npm run dev      # Start dev server with HMR
+npm run build    # TypeScript build check + production build
+npm run preview  # Preview production build locally
+npm run lint     # Run ESLint on entire codebase
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Features
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- Sandbox box: 6 `Plane` colliders forming a closed room; cubes inside.
+- Bouncy physics: tuned restitution/friction for a “gel-like” feel.
+- Selection & hop test: click to select, press `Space` to hop.
+- Auto-hop: cubes occasionally hop on their own in auto mode.
+- Squash & stretch: pre-jump, in-air, and landing scale phases.
+- Thought bubbles: Html overlays with cartoon styling and per-cube badge.
+- Cartoon eyes: pupils/eye scale react to mood inferred from thoughts.
+- Self-righting: detects tilt and re-orients upright (preserving yaw) with a gentle correction hop.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Key Files
+
+- `src/ui/scene/R3FCanvas.tsx` — Scene setup, physics world, selection/outline.
+- `src/ui/scene/components/Cube.tsx` — Physics cube, hop phases, self-righting, eyes, bubble.
+- `src/ui/scene/components/Plane.tsx` — Static planes for floor/walls/ceiling.
+- `src/ui/scene/ThoughtBubble.css` — Cartoon bubble styles.
+
+## Controls
+
+- Hover to highlight; click a cube to select.
+- Press `Space` to hop when a cube is selected.
+- Click empty space to clear selection.
+
+## Notes
+
+- `Outline.visibleEdgeColor` must be a number (e.g., `0xffffff`).
+- Keep R3F side-effects in `useFrame`; subscribe to Cannon APIs in `useEffect` and clean up.
+- Public assets load with `/` prefix; ESM-only (`"type": "module"`).
+
+## License
+
+This project is for learning/demonstration. No license specified.

@@ -4,7 +4,9 @@ import { useBox } from "@react-three/cannon";
 import { Html } from "@react-three/drei";
 import { Select } from "@react-three/postprocessing";
 import type { Triplet } from "@react-three/cannon";
-import "../ThoughtBubble.css";
+import type { Group, Mesh } from "three";
+import { Euler, Quaternion, Vector3 } from "three";
+import "../../styles/ThoughtBubble.css";
 
 export interface CubeProps {
   id: string;
@@ -16,7 +18,14 @@ export interface CubeProps {
   [key: string]: unknown;
 }
 
-export default function Cube({ id, selected = false, hopSignal = 0, auto = true, onSelect, ...props }: CubeProps) {
+export default function Cube({
+  id,
+  selected = false,
+  hopSignal = 0,
+  auto = true,
+  onSelect,
+  ...props
+}: CubeProps) {
   const [ref, api] = useBox(() => ({
     mass: 1,
     material: { restitution: 0.9, friction: 0.1 },
@@ -37,7 +46,64 @@ export default function Cube({ id, selected = false, hopSignal = 0, auto = true,
   const yPos = useRef(0);
   const velY = useRef(0);
   const lastHopSignal = useRef(0);
-  const lastPhase = useRef<"idle" | "squash" | "air" | "land" | "settle">("idle");
+  const lastPhase = useRef<"idle" | "squash" | "air" | "land" | "settle">(
+    "idle"
+  );
+
+  // Orientation/self-righting state
+  const quatRef = useRef<[number, number, number, number]>([0, 0, 0, 1]);
+  const uprightTarget = useRef<Quaternion | null>(null);
+  const tmpQ = useRef(new Quaternion());
+  const tmpEuler = useRef(new Euler(0, 0, 0, "YXZ"));
+  const tmpUp = useRef(new Vector3());
+
+  // Eyes state (cartoon expressions)
+  const leftEyeRef = useRef<Group | null>(null);
+  const rightEyeRef = useRef<Group | null>(null);
+  const leftPupilRef = useRef<Mesh | null>(null);
+  const rightPupilRef = useRef<Mesh | null>(null);
+  const eyeScale = useRef<[number, number]>([1, 1]);
+  const targetEyeScale = useRef<[number, number]>([1, 1]);
+  const pupilOffset = useRef<[number, number]>([0, 0]);
+  const targetPupilOffset = useRef<[number, number]>([0, 0]);
+
+  // Map thought/phase to eye expression targets
+  useEffect(() => {
+    const txt = (thought || "").toLowerCase();
+    let mood: "neutral" | "prep" | "air" | "land" | "curious" = "neutral";
+    if (txt.includes("preparando")) mood = "prep";
+    else if (txt.includes("weee")) mood = "air";
+    else if (txt.includes("plof")) mood = "land";
+    else if (
+      txt.includes("hmm") ||
+      txt.includes("¿") ||
+      txt.includes("zig") ||
+      txt.includes("bonito")
+    )
+      mood = "curious";
+
+    switch (mood) {
+      case "prep":
+        targetEyeScale.current = [1.2, 0.65];
+        targetPupilOffset.current = [0, -0.04];
+        break;
+      case "air":
+        targetEyeScale.current = [1.3, 1.3];
+        targetPupilOffset.current = [0, 0.08];
+        break;
+      case "land":
+        targetEyeScale.current = [1.4, 0.5];
+        targetPupilOffset.current = [0.02, -0.06];
+        break;
+      case "curious":
+        targetEyeScale.current = [1.05, 1];
+        targetPupilOffset.current = [0.08, 0];
+        break;
+      default:
+        targetEyeScale.current = [1, 1];
+        targetPupilOffset.current = [0, 0];
+    }
+  }, [thought]);
 
   useEffect(() => {
     const unsubPos = api.position.subscribe(([, y]) => {
@@ -52,11 +118,25 @@ export default function Cube({ id, selected = false, hopSignal = 0, auto = true,
     };
   }, [api.position, api.velocity]);
 
+  // Subscribe to quaternion to track current orientation
+  useEffect(() => {
+    const unsubQuat = api.quaternion.subscribe(([x, y, z, w]) => {
+      quatRef.current = [x, y, z, w];
+    });
+    return () => {
+      unsubQuat();
+    };
+  }, [api.quaternion]);
+
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
 
     if (!auto) {
-      if (selected && hopSignal !== lastHopSignal.current && phase.current === "idle") {
+      if (
+        selected &&
+        hopSignal !== lastHopSignal.current &&
+        phase.current === "idle"
+      ) {
         lastHopSignal.current = hopSignal;
         phase.current = "squash";
         phaseStart.current = t;
@@ -72,7 +152,10 @@ export default function Cube({ id, selected = false, hopSignal = 0, auto = true,
       const angle = Math.random() * Math.PI * 2;
       const mag = 0.6 + Math.random() * 0.6;
       dir.current = [Math.cos(angle) * mag, Math.sin(angle) * mag];
-      api.applyImpulse([dir.current[0] * 1.2, 3.2, dir.current[1] * 1.2], [0, 0, 0]);
+      api.applyImpulse(
+        [dir.current[0] * 1.2, 3.2, dir.current[1] * 1.2],
+        [0, 0, 0]
+      );
       phase.current = "air";
       phaseStart.current = t;
       targetScale.current = [0.9, 1.1, 0.9];
@@ -101,6 +184,36 @@ export default function Cube({ id, selected = false, hopSignal = 0, auto = true,
     s[2] += (trg[2] - s[2]) * Math.min(1, k * delta);
     if (ref.current) ref.current.scale.set(s[0], s[1], s[2]);
 
+    // Lerp eye scale + pupil offset
+    const ek = 12;
+    eyeScale.current[0] +=
+      (targetEyeScale.current[0] - eyeScale.current[0]) *
+      Math.min(1, ek * delta);
+    eyeScale.current[1] +=
+      (targetEyeScale.current[1] - eyeScale.current[1]) *
+      Math.min(1, ek * delta);
+    pupilOffset.current[0] +=
+      (targetPupilOffset.current[0] - pupilOffset.current[0]) *
+      Math.min(1, ek * delta);
+    pupilOffset.current[1] +=
+      (targetPupilOffset.current[1] - pupilOffset.current[1]) *
+      Math.min(1, ek * delta);
+    const [sx, sy] = eyeScale.current;
+    if (leftEyeRef.current) leftEyeRef.current.scale.set(sx, sy, 1);
+    if (rightEyeRef.current) rightEyeRef.current.scale.set(sx, sy, 1);
+    if (leftPupilRef.current)
+      leftPupilRef.current.position.set(
+        pupilOffset.current[0],
+        pupilOffset.current[1],
+        0.005
+      );
+    if (rightPupilRef.current)
+      rightPupilRef.current.position.set(
+        pupilOffset.current[0],
+        pupilOffset.current[1],
+        0.005
+      );
+
     if (lastPhase.current !== phase.current) {
       lastPhase.current = phase.current;
       switch (phase.current) {
@@ -120,13 +233,63 @@ export default function Cube({ id, selected = false, hopSignal = 0, auto = true,
           setThought("...");
       }
     }
+
+    // Self-righting: detect tilt and gently re-orient upright
+    // Compute current up-vector in world space
+    const q = tmpQ.current.set(
+      quatRef.current[0],
+      quatRef.current[1],
+      quatRef.current[2],
+      quatRef.current[3]
+    );
+    const up = tmpUp.current.set(0, 1, 0).applyQuaternion(q);
+    const dot = Math.max(-1, Math.min(1, up.y));
+    const tilt = Math.acos(dot); // radians from world-up
+
+    // If significantly tilted and we don't already have a target, compute it
+    if (tilt > 0.6 && uprightTarget.current == null) {
+      const e = tmpEuler.current.setFromQuaternion(q, "YXZ");
+      const yaw = e.y;
+      uprightTarget.current = new Quaternion().setFromEuler(
+        new Euler(0, yaw, 0, "YXZ")
+      );
+      if (phase.current === "idle") {
+        phase.current = "squash";
+        phaseStart.current = t;
+        targetScale.current = [1.25, 0.75, 1.25];
+      }
+    }
+
+    // If we have a target upright orientation, slerp towards it
+    if (uprightTarget.current) {
+      // Dampen spin while correcting
+      api.angularVelocity.set(0, 0, 0);
+      const alpha = Math.min(1, 8 * delta);
+      q.slerp(uprightTarget.current, alpha);
+      api.quaternion.set(q.x, q.y, q.z, q.w);
+
+      // Clear target when aligned closely during settle/idle
+      if (
+        q.angleTo(uprightTarget.current) < 0.02 &&
+        (phase.current === "settle" || phase.current === "idle")
+      ) {
+        api.quaternion.set(
+          uprightTarget.current.x,
+          uprightTarget.current.y,
+          uprightTarget.current.z,
+          uprightTarget.current.w
+        );
+        uprightTarget.current = null;
+      }
+    }
   });
 
   useEffect(() => {
     let mounted = true;
     const ideas = ["hmm...", "¿Salto?", "qué bonito cubo", "zig zag", "***"];
     const tick = () => {
-      if (mounted && phase.current === "idle") setThought(ideas[Math.floor(Math.random() * ideas.length)]);
+      if (mounted && phase.current === "idle")
+        setThought(ideas[Math.floor(Math.random() * ideas.length)]);
       timer = window.setTimeout(tick, 2000 + Math.random() * 2000);
     };
     let timer = window.setTimeout(tick, 1500);
@@ -149,10 +312,48 @@ export default function Cube({ id, selected = false, hopSignal = 0, auto = true,
         }}
       >
         <boxGeometry />
-        <meshStandardMaterial color={selected ? "#00d8ff" : hovered ? "hotpink" : "orange"} />
+        <meshStandardMaterial
+          color={selected ? "#00d8ff" : hovered ? "hotpink" : "orange"}
+        />
 
-        <Html position={[0, 1.4, 0]} occlude={false} transform sprite>
-          <div className={`thought-bubble ${selected ? "thought--selected" : hovered ? "thought--hovered" : "thought--default"}`}>
+        {/* Cartoon eyes on the +Z face (follow cube rotation) */}
+        <group position={[0, 0.12, 0.51]}>
+          {/* Left eye */}
+          <group ref={leftEyeRef} position={[-0.18, 0, 0]}>
+            <mesh>
+              <circleGeometry args={[0.12, 24]} />
+              <meshStandardMaterial
+                color="#ffffff"
+                emissive="#ffffff"
+                emissiveIntensity={0.2}
+              />
+            </mesh>
+            <mesh ref={leftPupilRef} position={[0, 0, 0.005]}>
+              <circleGeometry args={[0.05, 20]} />
+              <meshStandardMaterial color="#111111" />
+            </mesh>
+          </group>
+          {/* Right eye */}
+          <group ref={rightEyeRef} position={[0.18, 0, 0]}>
+            <mesh>
+              <circleGeometry args={[0.12, 24]} />
+              <meshStandardMaterial
+                color="#ffffff"
+                emissive="#ffffff"
+                emissiveIntensity={0.2}
+              />
+            </mesh>
+            <mesh ref={rightPupilRef} position={[0, 0, 0.005]}>
+              <circleGeometry args={[0.05, 20]} />
+              <meshStandardMaterial color="#111111" />
+            </mesh>
+          </group>
+        </group>
+
+        <Html position={[0, 1.4, 0]} occlude={true} transform sprite>
+          <div
+            className={`thought-bubble ${selected ? "thought--selected" : hovered ? "thought--hovered" : "thought--default"}`}
+          >
             <div className="thought-badge">{id}</div>
             <div className="thought-text">{thought}</div>
             <div className="thought-tail" />
