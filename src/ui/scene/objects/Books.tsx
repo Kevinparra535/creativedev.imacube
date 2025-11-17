@@ -3,7 +3,7 @@ import { shaderMaterial } from "@react-three/drei";
 import { extend } from "@react-three/fiber";
 import { useState } from "react";
 import * as THREE from "three";
-import niceColors from "nice-color-palettes";
+import { BOOKS_LIBRARY, type BookContent } from "../data/booksLibrary";
 
 const MeshEdgesMaterial = shaderMaterial(
   {
@@ -31,15 +31,11 @@ const MeshEdgesMaterial = shaderMaterial(
 
 extend({ MeshEdgesMaterial });
 
-const c = new THREE.Color();
-
 interface BookProps {
   position: [number, number, number];
   rotation: [number, number, number];
   size?: [number, number, number];
-  color: number;
-  domain: string;
-  difficulty: "basic" | "intermediate" | "advanced";
+  bookContent: BookContent;
   onReady?: (mesh: THREE.Mesh) => void;
   [key: string]: unknown;
 }
@@ -48,12 +44,12 @@ export function Book({
   position,
   rotation,
   size = [1.5, 1, 0.15],
-  color,
-  domain,
-  difficulty,
+  bookContent,
   onReady,
   ...props
 }: BookProps) {
+  const color = new THREE.Color(bookContent.color).getHex();
+  
   const [ref] = useBox(() => ({
     mass: 1,
     material: { restitution: 0.9, friction: 0.1 },
@@ -71,9 +67,10 @@ export function Book({
         // @ts-expect-error ref type mismatch
         ref.current = mesh;
         if (mesh) {
-          // Annotate with metadata for learning
-          mesh.userData.domain = domain;
-          mesh.userData.difficulty = difficulty;
+          // Annotate mesh with complete book data for reading system
+          mesh.userData.bookContent = bookContent;
+          mesh.userData.domain = bookContent.propiedades.conocimientos[0] || "Literatura";
+          mesh.userData.difficulty = bookContent.dificultad;
           if (onReady) onReady(mesh);
         }
       }}
@@ -98,27 +95,12 @@ export function Books({
     const halfSize = sandboxSize / 2;
     const minY = 0.5;
     const maxY = 15;
-    const palette = niceColors[17];
-    const domains = [
-      "science",
-      "technology",
-      "math",
-      "philosophy",
-      "literature",
-      "art",
-      "music",
-      "nature",
-    ];
-    const difficulties: Array<"basic" | "intermediate" | "advanced"> = [
-      "basic",
-      "intermediate",
-      "advanced",
-    ];
     const items = [];
 
     for (let i = 0; i < length; i++) {
-      const domain = domains[Math.floor(Math.random() * domains.length)];
-      const difficulty = difficulties[Math.floor(Math.random() * difficulties.length)];
+      // Select random book from library
+      const bookContent = BOOKS_LIBRARY[Math.floor(Math.random() * BOOKS_LIBRARY.length)];
+      
       items.push({
         id: i,
         position: [
@@ -131,9 +113,7 @@ export function Books({
           Math.random() * Math.PI * 2,
           Math.random() * Math.PI * 2,
         ] as [number, number, number],
-        color: c.set(palette[Math.floor(Math.random() * 5)]).getHex(),
-        domain,
-        difficulty,
+        bookContent,
       });
     }
 

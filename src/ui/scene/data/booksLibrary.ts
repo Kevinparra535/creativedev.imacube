@@ -403,7 +403,7 @@ export const BOOKS_LIBRARY: BookContent[] = [
     propiedades: {
       emociones_positivas: ["Humor", "Compasión"],
       emociones_negativas: ["Tedio", "Depresión", "Obsesión"],
-      traits_ganados: ["Intelectualidad", "Empatía", "Perfeccionismo"],
+      traits_ganados: ["Intelectualidad", "Compasión", "Perfeccionismo"],
       conocimientos: ["Psicología", "Sociología", "Literatura", "Filosofía"],
     },
     afinidad: { calm: 0.4, curious: 0.95, extrovert: 0.4, chaotic: 0.7, neutral: 0.6 },

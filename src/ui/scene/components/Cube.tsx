@@ -31,6 +31,19 @@ import { registerCube, unregisterCube, updateCube, getNeighbors } from "../syste
 import { tryLearnFromNeighbors, spontaneousDiscovery } from "../systems/SocialLearningSystem";
 import { applyBookEffects, createKnowledgeState } from "../guidelines/instrucciones";
 import type { KnowledgeDomain, BookSpec } from "../guidelines/instrucciones";
+import {
+  decideTORead,
+  getReadingSpeed,
+  processEmotions,
+  checkPersonalityChange,
+  applyKnowledgeGains,
+  getCategoryThought,
+  createReadingState,
+  startReading,
+  finishReading,
+  type ReadingState,
+} from "../systems/BookReadingSystem";
+import type { BookContent } from "../data/booksLibrary";
 import type { Personality as ListPersonality } from "../../components/CubeList";
 
 import "../../styles/ThoughtBubble.css";
@@ -97,6 +110,9 @@ export default function Cube({
   const observedBookMeta = useRef<{ domain?: string; difficulty?: "basic" | "intermediate" | "advanced" } | null>(null);
   const observeTick = useRef(0);
   const tiltExperienceTick = useRef(0);
+  const readingState = useRef<ReadingState>(createReadingState());
+  const readingTick = useRef(0);
+  const [currentPersonality, setCurrentPersonality] = useState(personality || "neutral");
   // Orientation/self-righting state
   const quatRef = useRef<[number, number, number, number]>([0, 0, 0, 1]);
   const uprightTarget = useRef<Quaternion | null>(null);
@@ -120,7 +136,7 @@ export default function Cube({
   const knowledge = useRef(createKnowledgeState());
   const personalityForRegistry: ListPersonality = personality as ListPersonality;
 
-  // Eyes targets derived from thought and personality
+  // Eyes targets derived from thought and current personality (may have changed from reading)
   const { eyeTargetScale, eyeTargetLook, mood } = useMemo(() => {
     const txt = (thought || "").toLowerCase();
     let mood: "neutral" | "prep" | "air" | "land" | "curious" | "happy" | "angry" | "sad" = "neutral";
@@ -134,7 +150,8 @@ export default function Cube({
       txt.includes("qué hay") ||
       txt.includes("¿") ||
       txt.includes("?") ||
-      txt.includes("déjame ver")
+      txt.includes("déjame ver") ||
+      txt.includes("interesante")
     )
       mood = "curious";
     else if (
@@ -170,7 +187,7 @@ export default function Cube({
       default:
         return { eyeTargetScale: [1, 1] as [number, number], eyeTargetLook: [0, 0] as [number, number], mood };
     }
-  }, [thought, personality]);
+  }, [thought, currentPersonality]);
 
   // Material & learning pulse
   const materialRef = useRef<MeshStandardMaterial | null>(null);
@@ -238,9 +255,10 @@ export default function Cube({
     // ────────────────────────────────────────────────────────────────
     // COMMUNITY UPDATE & SOCIAL LEARNING TICK
     // ────────────────────────────────────────────────────────────────
-    // Keep public state updated (include learning progress)
+    // Keep public state updated (include learning progress and current personality)
     updateCube(id, { 
-      position: cubePos.current, 
+      position: cubePos.current,
+      personality: currentPersonality as "calm" | "curious" | "extrovert" | "chaotic" | "neutral",
       capabilities: capabilities.current,
       learningProgress: { ...learningProgress.current },
       knowledge: { ...knowledge.current },
@@ -352,23 +370,37 @@ export default function Cube({
           if (att.currentTarget && att.currentTarget.type === "book") {
             observedBookMeta.current = { domain: att.currentTarget.domain, difficulty: att.currentTarget.difficulty };
             pulseStrength.current = 0.6; // small arrival pulse
+            
+            // Check if book has full content and decide whether to read
+            const bookContent = att.currentTarget.object.userData.bookContent as BookContent | undefined;
+            if (bookContent) {
+              const wantsToRead = decideTORead(bookContent, currentPersonality as "calm" | "curious" | "extrovert" | "chaotic" | "neutral");
+              if (wantsToRead) {
+                readingState.current = startReading(bookContent, t);
+                setThought(`"${bookContent.titulo}"... interesante`);
+              } else {
+                // Rejected book
+                setThought("Mmm, no me llama la atención");
+                readingState.current = createReadingState();
+              }
+            }
           }
         } else {
           // Continue navigating: orient and jump periodically
           const timeSinceLastJump = t - nav.lastJumpAt;
-          const jumpInterval = getJumpInterval(personality);
+          const jumpInterval = getJumpInterval(currentPersonality as Personality);
 
           if (capabilities.current.navigation && timeSinceLastJump > jumpInterval && phase.current === "navigating") {
             // Compute direction toward target
             const [dx, , dz] = computeJumpDirection(
               cubePos.current,
               nav.targetPosition,
-              personality
+              currentPersonality as Personality
             );
 
             if (dx !== 0 || dz !== 0) {
               // Apply jump impulse
-              const jumpStrength = getJumpStrength(personality);
+              const jumpStrength = getJumpStrength(currentPersonality as Personality);
               api.applyImpulse([dx, jumpStrength, dz], [0, 0, 0]);
               nav.lastJumpAt = t;
               // Trigger jump animation overlay without leaving navigating
@@ -418,31 +450,85 @@ export default function Cube({
       // OBSERVING: At target, gradual learning + boredom check
       if (phase.current === "observing" && att.currentTarget) {
         att.interestTimer += delta;
-        // Vision-based learning while observing books
-        if (att.currentTarget.type === "book") {
+        // Reading system: process emotions and knowledge from book content
+        if (att.currentTarget.type === "book" && readingState.current.currentBook) {
+          readingTick.current += delta;
+          if (readingTick.current >= 1) {
+            readingTick.current = 0;
+            const book = readingState.current.currentBook;
+            const readSpeed = getReadingSpeed(
+              currentPersonality as "calm" | "curious" | "extrovert" | "chaotic" | "neutral",
+              book.dificultad
+            );
+            
+            // Update reading progress
+            readingState.current.readingProgress += readSpeed;
+            
+            // Process emotions every second while reading
+            const { emotion, thought } = processEmotions(
+              book,
+              readingState.current.readingProgress,
+              currentPersonality as "calm" | "curious" | "extrovert" | "chaotic" | "neutral"
+            );
+            setThought(thought);
+            
+            // Small pulse on strong emotions
+            if (["Miedo", "Ira", "Asco", "Fascinación", "Alegría"].includes(emotion)) {
+              pulseStrength.current = 0.4;
+            }
+            
+            // Apply knowledge gains progressively
+            const knowledgeGains = applyKnowledgeGains(knowledge.current as unknown as Record<string, number>, book, readSpeed);
+            Object.keys(knowledgeGains).forEach(key => {
+              if (key in knowledge.current) {
+                (knowledge.current as any)[key] = knowledgeGains[key];
+              }
+            });
+            
+            // Capability progress: navigation from relevant domains
+            const relevantDomains = ["Ciencia", "Física", "Biología"];
+            const hasRelevant = book.propiedades.conocimientos.some(k => relevantDomains.includes(k));
+            if (!capabilities.current.navigation && hasRelevant) {
+              const navRate = readSpeed * 0.3;
+              learningProgress.current.navigation = Math.min(1, learningProgress.current.navigation + navRate);
+              if (learningProgress.current.navigation >= 1) {
+                capabilities.current.navigation = true;
+                setThought("¡Ahora entiendo cómo moverme!");
+                pulseStrength.current = 1;
+              }
+            }
+            
+            // Check if finished reading
+            if (readingState.current.readingProgress >= 1) {
+              // Book finished! Check for personality change
+              const changeResult = checkPersonalityChange(book, currentPersonality as "calm" | "curious" | "extrovert" | "chaotic" | "neutral");
+              if (changeResult.shouldChange && changeResult.newPersonality) {
+                setCurrentPersonality(changeResult.newPersonality);
+                setThought(changeResult.reason || "Me siento... diferente");
+                pulseStrength.current = 1.2;
+              } else {
+                setThought(getCategoryThought(book.categoria));
+                pulseStrength.current = 0.8;
+              }
+              
+              // Clear reading state
+              readingState.current = finishReading();
+            }
+          }
+        } else if (att.currentTarget.type === "book" && !readingState.current.currentBook) {
+          // Just observing without reading (rejected or no content)
           observeTick.current += delta;
           if (observeTick.current >= 1) {
             observeTick.current = 0;
             const domain = observedBookMeta.current?.domain as KnowledgeDomain | undefined;
             const difficulty = observedBookMeta.current?.difficulty;
-            const baseGain = difficulty === "advanced" ? 0.16 : difficulty === "intermediate" ? 0.12 : 0.08;
-            const personalityMultiplier = personality === "curious" ? 1.15 : personality === "extrovert" ? 0.9 : personality === "calm" ? 0.65 : personality === "chaotic" ? 0.8 : 0.85;
+            const baseGain = difficulty === "advanced" ? 0.08 : difficulty === "intermediate" ? 0.06 : 0.04;
+            const personalityMultiplier = currentPersonality === "curious" ? 1.15 : currentPersonality === "extrovert" ? 0.9 : currentPersonality === "calm" ? 0.65 : currentPersonality === "chaotic" ? 0.8 : 0.85;
             const stepGain = baseGain * personalityMultiplier;
             if (domain) {
               const bookStep: BookSpec = { domain, affect: { emotion: "curious", knowledgeGain: stepGain } } as BookSpec;
               const res = applyBookEffects(knowledge.current, bookStep, personalityForRegistry);
               knowledge.current = res.knowledge;
-            }
-            // Capability progress: navigation progresses more from science/technology/nature/math
-            const relevant = domain === "technology" || domain === "science" || domain === "nature" || domain === "math";
-            const navRate = relevant ? (personality === "curious" ? 0.08 : personality === "extrovert" ? 0.055 : personality === "neutral" ? 0.045 : personality === "calm" ? 0.03 : 0.035) : 0.01;
-            if (!capabilities.current.navigation) {
-              learningProgress.current.navigation = Math.min(1, learningProgress.current.navigation + navRate);
-              if (learningProgress.current.navigation >= 1) {
-                capabilities.current.navigation = true;
-                setThought("¡Aprendí a moverme observando!");
-                pulseStrength.current = 1;
-              }
             }
           }
         }
@@ -457,6 +543,8 @@ export default function Cube({
           isNavigating.current = false;
           observedBookMeta.current = null;
           observeTick.current = 0;
+          readingState.current = finishReading();
+          readingTick.current = 0;
         }
       }
     }
@@ -521,7 +609,7 @@ export default function Cube({
     if (phase.current === "idle" && ref.current) {
       const vis = computeVisualTargets(
         thought,
-        personality ?? "calm",
+        currentPersonality as Personality,
         selected,
         hovered
       );
@@ -596,7 +684,7 @@ export default function Cube({
       if (tiltExperienceTick.current >= 1) {
         tiltExperienceTick.current = 0;
         // Progress faster for curious/extrovert, slower for calm
-        const experienceRate = personality === "curious" ? 0.06 : personality === "extrovert" ? 0.05 : personality === "neutral" ? 0.04 : personality === "calm" ? 0.025 : 0.035;
+        const experienceRate = currentPersonality === "curious" ? 0.06 : currentPersonality === "extrovert" ? 0.05 : currentPersonality === "neutral" ? 0.04 : currentPersonality === "calm" ? 0.025 : 0.035;
         learningProgress.current.selfRighting = Math.min(1, learningProgress.current.selfRighting + experienceRate);
         if (learningProgress.current.selfRighting >= 1) {
           capabilities.current.selfRighting = true;
@@ -649,7 +737,7 @@ export default function Cube({
     if (materialRef.current) {
       const vis = computeVisualTargets(
         thought,
-        personality ?? "calm",
+        currentPersonality as Personality,
         selected,
         hovered
       );
