@@ -1,6 +1,6 @@
 # creativedev.imacube
 
-Interactive R3F sandbox with bouncy physics, thought bubbles, cartoon eyes, and self-righting cubes.
+Interactive R3F sandbox with bouncy physics, thought bubbles, swappable cute eyes, personality-driven visuals, and self-righting cubes.
 
 ## Stack
 
@@ -27,15 +27,33 @@ npm run lint     # Run ESLint on entire codebase
 - Auto-hop: cubes occasionally hop on their own in auto mode.
 - Squash & stretch: pre-jump, in-air, and landing scale phases.
 - Thought bubbles: Html overlays with cartoon styling and per-cube badge.
-- Cartoon eyes: pupils/eye scale react to mood inferred from thoughts.
+- Swappable eyes: `BubbleEyes` (whites+iris+spark) or `DotEyes` (minimal) via prop.
+- Personality visuals: color/material/breath/jitter derived from personality + mood.
 - Self-righting: detects tilt and re-orients upright (preserving yaw) with a gentle correction hop.
 
 ## Key Files
 
 - `src/ui/scene/R3FCanvas.tsx` — Scene setup, physics world, selection/outline.
-- `src/ui/scene/components/Cube.tsx` — Physics cube, hop phases, self-righting, eyes, bubble.
+- `src/ui/scene/components/Cube.tsx` — Physics cube, hop phases, self-righting, eyes, bubble, personality visuals.
 - `src/ui/scene/components/Plane.tsx` — Static planes for floor/walls/ceiling.
 - `src/ui/scene/ThoughtBubble.css` — Cartoon bubble styles.
+- `src/ui/scene/objects/{BubbleEyes,DotEyes}.tsx` — Eye styles with blink and gaze.
+- `src/ui/scene/visual/visualState.ts` — Map `personality + mood(thought)` to material/anim targets.
+
+## Visual System
+
+- Personality: `calm | extrovert | curious | chaotic | neutral` sets baseline palette + material.
+- Mood: inferred from `thought` text (e.g., “¡Weee!”, “Plof”, “hmm/¿?”) overlays color and micro-animations.
+- Targets: `computeVisualTargets` returns `{ color, emissiveIntensity, roughness, metalness, breathAmp, jitterAmp }`.
+- Eyes: choose with `eyeStyle="bubble" | "dot"`.
+
+### Example
+
+```tsx
+// R3FCanvas.tsx
+<Cube id="A" position={[0, 0.5, 0]} personality="curious" eyeStyle="bubble" />
+<Cube id="B" position={[1, 0.5, 0]} personality="extrovert" eyeStyle="dot" />
+```
 
 ## Controls
 

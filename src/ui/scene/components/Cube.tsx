@@ -4,8 +4,9 @@ import { useBox } from "@react-three/cannon";
 import { Html } from "@react-three/drei";
 import { Select } from "@react-three/postprocessing";
 import type { Triplet } from "@react-three/cannon";
-import { Euler, Quaternion, Vector3 } from "three";
+import { Color, Euler, Quaternion, Vector3 } from "three";
 import { BubbleEyes, DotEyes } from "../objects";
+import { computeVisualTargets } from "../visual/visualState";
 import "../../styles/ThoughtBubble.css";
 
 export interface CubeProps {
@@ -25,6 +26,7 @@ export default function Cube({
   hopSignal = 0,
   auto = true,
   eyeStyle = "bubble",
+  personality = "calm",
   onSelect,
   ...props
 }: CubeProps) {
@@ -167,6 +169,16 @@ export default function Cube({
     s[2] += (trg[2] - s[2]) * Math.min(1, k * delta);
     if (ref.current) ref.current.scale.set(s[0], s[1], s[2]);
 
+    // Idle breathing and confusion jitter overlays (visual-only, small)
+    if (phase.current === "idle" && ref.current) {
+      const vis = computeVisualTargets(thought, personality as any, selected, hovered);
+      const breath = 1 + vis.breathAmp * Math.sin(t * 1.6);
+      const jitter = vis.jitterAmp ? vis.jitterAmp * (Math.sin(t * 20 + (id.charCodeAt(0) % 10)) * 0.5) : 0;
+      ref.current.scale.y *= breath;
+      ref.current.scale.x *= 1 - jitter * 0.5;
+      ref.current.scale.z *= 1 + jitter * 0.5;
+    }
+
     // Eyes handled by eyes components now
 
     if (lastPhase.current !== phase.current) {
@@ -267,9 +279,18 @@ export default function Cube({
         }}
       >
         <boxGeometry />
-        <meshStandardMaterial
-          color={selected ? "#00d8ff" : hovered ? "hotpink" : "gray"}
-        />
+        {(() => {
+          const vis = computeVisualTargets(thought, personality as any, selected, hovered);
+          return (
+            <meshStandardMaterial
+              color={vis.color}
+              emissive={new Color(vis.color).multiplyScalar(0.4)}
+              emissiveIntensity={vis.emissiveIntensity}
+              roughness={vis.roughness}
+              metalness={vis.metalness}
+            />
+          );
+        })()}
 
         {/* Eyes on +Z face */}
         {eyeStyle === "bubble" ? (
@@ -284,7 +305,7 @@ export default function Cube({
           >
             <div className="thought-badge">{id}</div>
             <div className="thought-text">{thought}</div>
-            <div className="thought-tail" />
+            {/* <div className="thought-tail" /> */}
           </div>
         </Html>
       </mesh>

@@ -59,6 +59,8 @@ import publicAsset from '/public-asset.svg'  // Public folder assets use /
 - **Scene file**: `src/ui/scene/R3FCanvas.tsx`
 - **Components**: `src/ui/scene/components/Cube.tsx`, `src/ui/scene/components/Plane.tsx`
 - **Styles**: `src/ui/scene/ThoughtBubble.css` (desde componentes: `import "../ThoughtBubble.css"`)
+- **Objects**: `src/ui/scene/objects/{BubbleEyes,DotEyes}.tsx` (ojos intercambiables por props)
+- **Visual**: `src/ui/scene/visual/visualState.ts` (mapea personalidad/estado → material y micro-animaciones)
 - **Sandbox geometry**: 6 `Plane` bodies forming a closed cube; `Cube` bodies inside.
 - **Physics config**: `Physics` node with `gravity`, `defaultContactMaterial` (tuned `restitution`, `friction`, `contactEquationRelaxation` for springy collisions).
 - **Materials**: Dynamic restitution/friction on cubes/planes to achieve bouncy, “gel-like” feel.
@@ -73,6 +75,8 @@ import publicAsset from '/public-asset.svg'  // Public folder assets use /
 	- Aterrizaje: `[1.3, 0.7, 1.3]` → luego ` [1,1,1]`
 - **Impulso físico**: `api.applyImpulse([dx, 3.2, dz], [0,0,0])` con `dx/dz` aleatorios (en modo auto) o sólo al presionar espacio (modo test).
 - **Self-righting (auto-enderezado)**: Suscríbete a `api.quaternion`, calcula el `tilt` mediante el up-vector (`acos(up.y)`), genera un objetivo vertical preservando yaw y aplica `Quaternion.slerp` con amortiguación de `angularVelocity` para estabilizar.
+ - **Ojos intercambiables**: `Cube` acepta `eyeStyle={"bubble"|"dot"}` y renderiza `BubbleEyes` o `DotEyes` sobre la cara +Z.
+ - **Personalidad/estado visual**: `Cube` acepta `personality` (`calm|extrovert|curious|chaotic|neutral`). `computeVisualTargets(thought, personality, selected, hovered)` devuelve `{ color, emissiveIntensity, roughness, metalness, breathAmp, jitterAmp }` para material y micro-animaciones (respiración/jitter sutil).
 - **Best practices**:
 	- No mutar variables locales después del render; usar `useRef` + `useFrame`.
 	- Evitar suscripciones en render; mover a `useEffect` y limpiar (`unsub()`).
@@ -118,9 +122,16 @@ Uses flat config with these plugins:
 	- Fases de salto: `idle → squash → air → land → settle`
 	- Auto-hop: programación mediante `nextHopAt`
 	- Auto-enderezado: suscripción a `api.quaternion`, cálculo de tilt y `slerp` a vertical preservando yaw
-	- Expresiones: ojos cartoon + burbuja `Html` con estilos de `ThoughtBubble.css`
+	- Expresiones: `eyeStyle` (`bubble|dot`) + burbuja `Html` (estilos `ThoughtBubble.css`)
+	- Visual mapping: `computeVisualTargets` aplicado al material (`color/emissive/roughness/metalness`) y micro-animaciones (respiración/jitter)
 
 - File: `src/ui/scene/components/Plane.tsx`
 	- Colisionadores estáticos con material (restitución/fricción) ajustado para rebote “gel-like”
+
+- Objects: `src/ui/scene/objects/{BubbleEyes,DotEyes}.tsx`
+	- Ojos con parpadeo y mirada lerpeada; reciben `look` y `eyeScale` desde `Cube`
+
+- Visual: `src/ui/scene/visual/visualState.ts`
+	- `computeVisualTargets(thought, personality, selected, hovered)` → objetivos visuales coherentes con estado
 
 If adding new organisms or motions, reuse the pattern: drive phase/target via refs, schedule impulses, lerp visuals in `useFrame`, subscribe to Cannon in `useEffect`.
