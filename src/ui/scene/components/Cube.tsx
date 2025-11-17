@@ -96,6 +96,7 @@ export default function Cube({
   const learningProgress = useRef({ navigation: 0, selfRighting: 0 });
   const observedBookMeta = useRef<{ domain?: string; difficulty?: "basic" | "intermediate" | "advanced" } | null>(null);
   const observeTick = useRef(0);
+  const tiltExperienceTick = useRef(0);
   // Orientation/self-righting state
   const quatRef = useRef<[number, number, number, number]>([0, 0, 0, 1]);
   const uprightTarget = useRef<Quaternion | null>(null);
@@ -237,8 +238,13 @@ export default function Cube({
     // ────────────────────────────────────────────────────────────────
     // COMMUNITY UPDATE & SOCIAL LEARNING TICK
     // ────────────────────────────────────────────────────────────────
-    // Keep public state updated
-    updateCube(id, { position: cubePos.current, capabilities: capabilities.current });
+    // Keep public state updated (include learning progress)
+    updateCube(id, { 
+      position: cubePos.current, 
+      capabilities: capabilities.current,
+      learningProgress: { ...learningProgress.current },
+      knowledge: { ...knowledge.current },
+    });
     // Periodically attempt to learn missing capabilities
     if (t - lastLearnCheck.current > 2) {
       lastLearnCheck.current = t;
@@ -572,18 +578,35 @@ export default function Cube({
       }
     }
 
-    // Self-righting: gated by learned capability
+    // Self-righting: learn by experiencing tilt, then apply when learned
+    // Compute current up-vector in world space
+    const q = tmpQ.current.set(
+      quatRef.current[0],
+      quatRef.current[1],
+      quatRef.current[2],
+      quatRef.current[3]
+    );
+    const up = tmpUp.current.set(0, 1, 0).applyQuaternion(q);
+    const dot = Math.max(-1, Math.min(1, up.y));
+    const tilt = Math.acos(dot); // radians from world-up
+
+    // Learn self-righting by experiencing tilt (even before capability unlocked)
+    if (!capabilities.current.selfRighting && tilt > 0.5) {
+      tiltExperienceTick.current += delta;
+      if (tiltExperienceTick.current >= 1) {
+        tiltExperienceTick.current = 0;
+        // Progress faster for curious/extrovert, slower for calm
+        const experienceRate = personality === "curious" ? 0.06 : personality === "extrovert" ? 0.05 : personality === "neutral" ? 0.04 : personality === "calm" ? 0.025 : 0.035;
+        learningProgress.current.selfRighting = Math.min(1, learningProgress.current.selfRighting + experienceRate);
+        if (learningProgress.current.selfRighting >= 1) {
+          capabilities.current.selfRighting = true;
+          setThought("¡Aprendí a enderezarme solo!");
+          pulseStrength.current = 1;
+        }
+      }
+    }
+
     if (capabilities.current.selfRighting) {
-      // Compute current up-vector in world space
-      const q = tmpQ.current.set(
-        quatRef.current[0],
-        quatRef.current[1],
-        quatRef.current[2],
-        quatRef.current[3]
-      );
-      const up = tmpUp.current.set(0, 1, 0).applyQuaternion(q);
-      const dot = Math.max(-1, Math.min(1, up.y));
-      const tilt = Math.acos(dot); // radians from world-up
 
       // If significantly tilted and we don't already have a target, compute it
       if (tilt > 0.6 && uprightTarget.current == null) {

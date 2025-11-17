@@ -15,6 +15,7 @@ import SandBox from "./objects/SandBox";
 import Ambients from "./objects/Ambients";
 import { Books } from "./objects/Books";
 import { CUBES_CONFIG } from "./cubesConfig";
+// import Mirror from "./objects/Mirror";
 
 interface R3FCanvasProps {
   selectedId: string | null;
@@ -74,6 +75,8 @@ export default function R3FCanvas({ selectedId, onSelect }: R3FCanvasProps) {
           }}
         >
           <SandBox />
+
+          {/* <Mirror /> */}
 
           <Ambients groupPosition={[-40, 0, -40]} textureMap={iceTextureMap} />
           <Ambients groupPosition={[40, 0, -40]} textureMap={lavaTextureMap} />

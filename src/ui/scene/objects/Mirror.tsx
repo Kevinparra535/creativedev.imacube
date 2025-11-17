@@ -1,10 +1,16 @@
+import { MeshReflectorMaterial } from "@react-three/drei";
 import React from "react";
 
 const Mirror = () => {
   return (
-    <mesh>
+    <mesh rotation={[0, 0, 0]}>
       <planeGeometry args={[10, 10]} />
-      <meshStandardMaterial color="#888888" metalness={1} roughness={0} />
+      <MeshReflectorMaterial
+        blur={[400, 100]}
+        resolution={1024}
+        mixBlur={0}
+        mixStrength={0.5}
+      />
     </mesh>
   );
 };

@@ -13,6 +13,8 @@ export interface PublicCubeState {
   personality: Personality;
   socialTrait: "kind" | "selfish";
   capabilities: CapabilitiesState;
+  learningProgress?: { navigation: number; selfRighting: number };
+  knowledge?: Record<string, number>;
 }
 
 const registry = new Map<string, PublicCubeState>();
