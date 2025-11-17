@@ -6,6 +6,38 @@
 import type { BookContent, BookEmotion } from "../data/booksLibrary";
 import { shouldReadBook } from "../data/booksLibrary";
 
+// Map Spanish domain names to KnowledgeState field names
+export const DOMAIN_MAPPING: Record<string, string> = {
+  "Ciencia": "science",
+  "Tecnología": "technology",
+  "Matemáticas": "math",
+  "Filosofía": "philosophy",
+  "Literatura": "literature",
+  "Arte": "art",
+  "Música": "music",
+  "Naturaleza": "nature",
+  "Biología": "science", // Maps to science
+  "Física": "science", // Maps to science
+  "Genética": "science", // Maps to science
+  "Ética": "philosophy", // Maps to philosophy
+  "Teología": "philosophy", // Maps to philosophy
+  "Historia": "literature", // Maps to literature
+  "Política": "philosophy", // Maps to philosophy
+  "Poesía": "literature", // Maps to literature
+  "Sociología": "philosophy", // Maps to philosophy
+  "Psicología": "philosophy", // Maps to philosophy
+  "Economía": "philosophy", // Maps to philosophy
+  "Ecología": "science", // Maps to science
+  "Mitología": "literature", // Maps to literature
+  "Lingüística": "literature", // Maps to literature
+  "Teoría literaria": "literature", // Maps to literature
+};
+
+/** Extract key concepts from a book if provided */
+export function getBookConcepts(book: BookContent): string[] {
+  return book.propiedades.conceptos ?? [];
+}
+
 export interface ReadingState {
   currentBook: BookContent | null;
   readingProgress: number; // 0-1, how much of book has been read
@@ -142,7 +174,8 @@ export function applyKnowledgeGains(
 
   // Each knowledge domain gains based on chunk read
   conocimientos.forEach((domain) => {
-    const domainKey = domain.toLowerCase();
+    // Map Spanish domain to KnowledgeState field
+    const domainKey = DOMAIN_MAPPING[domain] || domain.toLowerCase();
     const current = newKnowledge[domainKey] || 0;
     const gain = readingChunk * 0.5; // 50% knowledge gain per full read
     newKnowledge[domainKey] = Math.min(10, current + gain);

@@ -113,6 +113,11 @@ export default function Cube({
   const readingState = useRef<ReadingState>(createReadingState());
   const readingTick = useRef(0);
   const [currentPersonality, setCurrentPersonality] = useState(personality || "neutral");
+  const originalPersonality = useRef(personality || "neutral");
+  const emotionsExperienced = useRef<Set<string>>(new Set());
+  const traitsAcquired = useRef<Set<string>>(new Set());
+  const booksRead = useRef<string[]>([]);
+  const conceptsLearned = useRef<Set<string>>(new Set());
   // Orientation/self-righting state
   const quatRef = useRef<[number, number, number, number]>([0, 0, 0, 1]);
   const uprightTarget = useRef<Quaternion | null>(null);
@@ -255,13 +260,22 @@ export default function Cube({
     // ────────────────────────────────────────────────────────────────
     // COMMUNITY UPDATE & SOCIAL LEARNING TICK
     // ────────────────────────────────────────────────────────────────
-    // Keep public state updated (include learning progress and current personality)
+    // Keep public state updated (include learning progress, current personality, and reading experiences)
     updateCube(id, { 
       position: cubePos.current,
       personality: currentPersonality as "calm" | "curious" | "extrovert" | "chaotic" | "neutral",
       capabilities: capabilities.current,
       learningProgress: { ...learningProgress.current },
       knowledge: { ...knowledge.current },
+      readingExperiences: {
+        originalPersonality: originalPersonality.current,
+        emotionsExperienced: Array.from(emotionsExperienced.current),
+        traitsAcquired: Array.from(traitsAcquired.current),
+        booksRead: [...booksRead.current],
+        currentBook: readingState.current.currentBook?.titulo,
+        readingProgress: readingState.current.readingProgress,
+        conceptsLearned: Array.from(conceptsLearned.current),
+      },
     });
     // Periodically attempt to learn missing capabilities
     if (t - lastLearnCheck.current > 2) {
@@ -472,6 +486,19 @@ export default function Cube({
             );
             setThought(thought);
             
+            // Track emotion experienced
+            emotionsExperienced.current.add(emotion);
+
+            // Progressively add key concepts from the book as knowledge topics
+            const conceptos = (book.propiedades as any).conceptos as string[] | undefined;
+            if (conceptos && conceptos.length > 0) {
+              const idx = Math.floor(Math.min(0.999, readingState.current.readingProgress) * conceptos.length);
+              for (let i = 0; i <= idx; i++) {
+                const c = conceptos[i];
+                if (c) conceptsLearned.current.add(c);
+              }
+            }
+            
             // Small pulse on strong emotions
             if (["Miedo", "Ira", "Asco", "Fascinación", "Alegría"].includes(emotion)) {
               pulseStrength.current = 0.4;
@@ -500,6 +527,22 @@ export default function Cube({
             
             // Check if finished reading
             if (readingState.current.readingProgress >= 1) {
+              // Track traits acquired from this book
+              book.propiedades.traits_ganados.forEach(trait => {
+                traitsAcquired.current.add(trait);
+              });
+              
+              // Track book read
+              if (!booksRead.current.includes(book.titulo)) {
+                booksRead.current.push(book.titulo);
+              }
+
+              // Ensure all concepts recorded at completion
+              const conceptosAll = (book.propiedades as any).conceptos as string[] | undefined;
+              if (conceptosAll && conceptosAll.length) {
+                conceptosAll.forEach((c) => conceptsLearned.current.add(c));
+              }
+              
               // Book finished! Check for personality change
               const changeResult = checkPersonalityChange(book, currentPersonality as "calm" | "curious" | "extrovert" | "chaotic" | "neutral");
               if (changeResult.shouldChange && changeResult.newPersonality) {

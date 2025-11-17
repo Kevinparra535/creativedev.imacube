@@ -17,10 +17,31 @@ import {
   PanelTitle,
 } from "../styles/CubeFooter.styles";
 
+// Map knowledge domain keys to Spanish display names
+const DOMAIN_DISPLAY_NAMES: Record<string, string> = {
+  science: "Ciencia",
+  technology: "Tecnología",
+  math: "Matemáticas",
+  philosophy: "Filosofía",
+  literature: "Literatura",
+  art: "Arte",
+  music: "Música",
+  nature: "Naturaleza",
+};
+
 type FooterCube = CubeData & {
   capabilities?: { navigation: boolean; selfRighting: boolean };
   learningProgress?: { navigation: number; selfRighting: number };
   knowledge?: Record<string, number>;
+  readingExperiences?: {
+    originalPersonality: string;
+    emotionsExperienced: string[];
+    traitsAcquired: string[];
+    booksRead: string[];
+    currentBook?: string;
+    readingProgress?: number;
+    conceptsLearned?: string[];
+  };
 };
 
 interface CubeFooterProps {
@@ -41,17 +62,26 @@ export default function CubeFooter({ cubes, selectedId }: CubeFooterProps) {
     const nodes: FlowNode[] = [];
     const edges: Edge[] = [];
 
-    // Central cube node
+    // Central cube node with personality change indicator
+    const hasChangedPersonality = selectedCube.readingExperiences && 
+      selectedCube.readingExperiences.originalPersonality !== selectedCube.personality;
+    
     const cubeNode: FlowNode = {
       id: "cube",
       type: "default",
       position: { x: 400, y: 150 },
       data: {
-        label: `${selectedCube.id} - ${selectedCube.personality}`,
+        label: hasChangedPersonality 
+          ? `${selectedCube.id}\n${selectedCube.readingExperiences!.originalPersonality} → ${selectedCube.personality}`
+          : `${selectedCube.id} - ${selectedCube.personality}`,
       },
       style: {
-        background: "rgba(102, 179, 255, 0.2)",
-        border: "2px solid #66b3ff",
+        background: hasChangedPersonality 
+          ? "rgba(255, 170, 0, 0.3)" 
+          : "rgba(102, 179, 255, 0.2)",
+        border: hasChangedPersonality 
+          ? "2px solid #ffaa00" 
+          : "2px solid #66b3ff",
         borderRadius: "8px",
         padding: "10px 20px",
         color: "#fff",
@@ -276,6 +306,7 @@ export default function CubeFooter({ cubes, selectedId }: CubeFooterProps) {
       domains.forEach(([domain, value], idx) => {
         const id = `domain-${nodeId++}`;
         const percentage = Math.min(100, Math.round((value as number) * 10));
+        const displayName = DOMAIN_DISPLAY_NAMES[domain] || domain;
         nodes.push({
           id,
           type: "default",
@@ -283,7 +314,7 @@ export default function CubeFooter({ cubes, selectedId }: CubeFooterProps) {
             x: 200 + idx * 140,
             y: 520,
           },
-          data: { label: `📚 ${domain}\n${percentage}%` },
+          data: { label: `📚 ${displayName}\n${percentage}%` },
           style: {
             background: `linear-gradient(to top, rgba(102, 179, 255, 0.3) ${percentage}%, rgba(40, 40, 50, 0.6) ${percentage}%)`,
             border: "1px solid #66b3ff",
@@ -303,6 +334,151 @@ export default function CubeFooter({ cubes, selectedId }: CubeFooterProps) {
           style: { stroke: "#66b3ff", opacity: 0.5 },
         });
       });
+    }
+
+    // Reading experiences section
+    if (selectedCube.readingExperiences) {
+      const exp = selectedCube.readingExperiences;
+      let experienceNodeX = 50;
+      const experienceNodeY = 350;
+
+      // Current reading status
+      if (exp.currentBook) {
+        const id = `reading-${nodeId++}`;
+        const progress = Math.round((exp.readingProgress || 0) * 100);
+        nodes.push({
+          id,
+          type: "default",
+          position: { x: experienceNodeX, y: experienceNodeY },
+          data: { label: `📖 Leyendo\n"${exp.currentBook}"\n${progress}%` },
+          style: {
+            background: `linear-gradient(to right, rgba(255, 170, 0, 0.3) ${progress}%, rgba(40, 40, 50, 0.6) ${progress}%)`,
+            border: "2px solid #ffaa00",
+            borderRadius: "6px",
+            padding: "8px 12px",
+            color: "#fff",
+            fontSize: "0.7rem",
+            textAlign: "center",
+            minWidth: "120px",
+          },
+        });
+        edges.push({
+          id: `e-${id}`,
+          source: "cube",
+          target: id,
+          animated: true,
+          style: { stroke: "#ffaa00" },
+        });
+        experienceNodeX += 140;
+      }
+
+      // Emotions experienced (top 5 most recent)
+      if (exp.emotionsExperienced.length > 0) {
+        const topEmotions = exp.emotionsExperienced.slice(-5);
+        topEmotions.forEach((emotion, idx) => {
+          const id = `emotion-exp-${nodeId++}`;
+          nodes.push({
+            id,
+            type: "default",
+            position: { x: experienceNodeX + idx * 100, y: experienceNodeY },
+            data: { label: `💭 ${emotion}` },
+            style: {
+              background: "rgba(255, 100, 200, 0.2)",
+              border: "1px solid #ff64c8",
+              borderRadius: "6px",
+              padding: "6px 10px",
+              color: "#fff",
+              fontSize: "0.65rem",
+            },
+          });
+          edges.push({
+            id: `e-${id}`,
+            source: "cube",
+            target: id,
+            style: { stroke: "#ff64c8", opacity: 0.4 },
+          });
+        });
+      }
+
+      // Concepts learned (e.g., "Dios", "Fe")
+      if (exp.conceptsLearned && exp.conceptsLearned.length > 0) {
+        const recentConcepts = exp.conceptsLearned.slice(-6);
+        recentConcepts.forEach((concept, idx) => {
+          const id = `concept-${nodeId++}`;
+          nodes.push({
+            id,
+            type: "default",
+            position: { x: 50 + idx * 120, y: 600 },
+            data: { label: `🧩 ${concept}` },
+            style: {
+              background: "rgba(255, 210, 90, 0.2)",
+              border: "1px solid #ffd25a",
+              borderRadius: "6px",
+              padding: "6px 10px",
+              color: "#fff",
+              fontSize: "0.7rem",
+            },
+          });
+          edges.push({
+            id: `e-${id}`,
+            source: "cube",
+            target: id,
+            style: { stroke: "#ffd25a", opacity: 0.5 },
+          });
+        });
+      }
+
+      // Traits acquired
+      if (exp.traitsAcquired.length > 0) {
+        exp.traitsAcquired.slice(0, 4).forEach((trait, idx) => {
+          const id = `trait-acq-${nodeId++}`;
+          nodes.push({
+            id,
+            type: "default",
+            position: { x: 50 + idx * 150, y: 450 },
+            data: { label: `✨ ${trait}` },
+            style: {
+              background: "rgba(100, 255, 150, 0.2)",
+              border: "1px solid #64ff96",
+              borderRadius: "6px",
+              padding: "6px 10px",
+              color: "#fff",
+              fontSize: "0.7rem",
+            },
+          });
+          edges.push({
+            id: `e-${id}`,
+            source: "cube",
+            target: id,
+            style: { stroke: "#64ff96", opacity: 0.5 },
+          });
+        });
+      }
+
+      // Books read count
+      if (exp.booksRead.length > 0) {
+        const id = `books-count-${nodeId++}`;
+        nodes.push({
+          id,
+          type: "default",
+          position: { x: 650, y: 450 },
+          data: { label: `📚 Libros leídos: ${exp.booksRead.length}` },
+          style: {
+            background: "rgba(102, 179, 255, 0.2)",
+            border: "1px solid #66b3ff",
+            borderRadius: "6px",
+            padding: "8px 12px",
+            color: "#fff",
+            fontSize: "0.75rem",
+          },
+        });
+        edges.push({
+          id: `e-${id}`,
+          source: "cube",
+          target: id,
+          style: { stroke: "#66b3ff", opacity: 0.4 },
+        });
+      }
     }
 
     return { nodes, edges };

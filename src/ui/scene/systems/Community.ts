@@ -15,6 +15,15 @@ export interface PublicCubeState {
   capabilities: CapabilitiesState;
   learningProgress?: { navigation: number; selfRighting: number };
   knowledge?: Record<string, number>;
+  readingExperiences?: {
+    originalPersonality: string;
+    emotionsExperienced: string[];
+    traitsAcquired: string[];
+    booksRead: string[];
+    currentBook?: string;
+    readingProgress?: number;
+    conceptsLearned?: string[];
+  };
 }
 
 const registry = new Map<string, PublicCubeState>();
@@ -78,8 +87,38 @@ export function updateCube(id: string, partial: Partial<PublicCubeState>) {
   const caps = cur.capabilities;
   const capn = next.capabilities;
   const capsChanged = caps !== capn && (!!capn && (caps.navigation !== capn.navigation || caps.selfRighting !== capn.selfRighting));
+  
+  // Check learningProgress changes
+  const lpChanged = cur.learningProgress !== next.learningProgress && (
+    !!next.learningProgress && (
+      cur.learningProgress?.navigation !== next.learningProgress.navigation ||
+      cur.learningProgress?.selfRighting !== next.learningProgress.selfRighting
+    )
+  );
+  
+  // Check knowledge changes (any domain value changed)
+  const knowledgeChanged = cur.knowledge !== next.knowledge && (
+    !!next.knowledge && (
+      !cur.knowledge ||
+      Object.keys(next.knowledge).some(key => cur.knowledge![key] !== next.knowledge![key])
+    )
+  );
 
-  if (posChanged || persChanged || traitChanged || capsChanged) {
+  // Check reading experiences changes (shallow compare of fields we expose)
+  const reCur = cur.readingExperiences;
+  const reNext = next.readingExperiences;
+  const readingExpChanged = reCur !== reNext && (
+    (!!reNext && (
+      reCur?.currentBook !== reNext.currentBook ||
+      reCur?.readingProgress !== reNext.readingProgress ||
+      (reCur?.emotionsExperienced?.length || 0) !== (reNext.emotionsExperienced?.length || 0) ||
+      (reCur?.traitsAcquired?.length || 0) !== (reNext.traitsAcquired?.length || 0) ||
+      (reCur?.booksRead?.length || 0) !== (reNext.booksRead?.length || 0) ||
+      (reCur?.conceptsLearned?.length || 0) !== (reNext.conceptsLearned?.length || 0)
+    ))
+  );
+
+  if (posChanged || persChanged || traitChanged || capsChanged || lpChanged || knowledgeChanged || readingExpChanged) {
     registry.set(id, next);
     notify();
   }

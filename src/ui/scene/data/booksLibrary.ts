@@ -46,6 +46,7 @@ export interface BookContent {
     traits_ganados: PersonalityTrait[];
     traits_perdidos?: PersonalityTrait[];
     conocimientos: KnowledgeDomain[];
+    conceptos?: string[];
     cambio_personalidad?: {
       // Probabilidad de cambio de personalidad según la actual
       calm?: { nuevo: "curious" | "extrovert" | "chaotic" | "neutral"; probabilidad: number };
@@ -80,6 +81,7 @@ export const BOOKS_LIBRARY: BookContent[] = [
       emociones_negativas: ["Temor", "Culpa"],
       traits_ganados: ["Desarrollo moral", "Humildad", "Compasión", "Fortaleza espiritual"],
       conocimientos: ["Ética", "Teología", "Filosofía", "Historia"],
+      conceptos: ["Dios", "Fe", "Pecado", "Perdón", "Amor", "Esperanza"],
     },
     afinidad: { calm: 0.9, curious: 0.6, extrovert: 0.5, chaotic: 0.2, neutral: 0.7 },
   },
