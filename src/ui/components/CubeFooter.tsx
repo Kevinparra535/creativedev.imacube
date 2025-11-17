@@ -27,6 +27,7 @@ const DOMAIN_DISPLAY_NAMES: Record<string, string> = {
   art: "Arte",
   music: "Música",
   nature: "Naturaleza",
+  theology: "Teología",
 };
 
 type FooterCube = CubeData & {

@@ -20,6 +20,7 @@ export type KnowledgeDomain =
   | "science"
   | "technology"
   | "math"
+  | "theology"
   | "philosophy"
   | "literature"
   | "art"
@@ -30,6 +31,7 @@ export interface KnowledgeState {
   science: number;
   technology: number;
   math: number;
+  theology: number;
   philosophy: number;
   literature: number;
   art: number;
@@ -105,6 +107,7 @@ export const DEFAULT_BOOK_EFFECTS: Record<KnowledgeDomain, Omit<BookSpec, "domai
   science: { affect: { emotion: "curious", knowledgeGain: 2 } },
   technology: { affect: { emotion: "curious", knowledgeGain: 2 } },
   math: { affect: { emotion: "curious", knowledgeGain: 2 } },
+  theology: { affect: { emotion: "sad", knowledgeGain: 1 } },
   philosophy: { affect: { emotion: "sad", knowledgeGain: 1 } },
   literature: { affect: { emotion: "happy", knowledgeGain: 1 } },
   art: { affect: { emotion: "happy", knowledgeGain: 1 } },
@@ -121,6 +124,7 @@ export function createKnowledgeState(): KnowledgeState {
     science: 0,
     technology: 0,
     math: 0,
+    theology: 0,
     philosophy: 0,
     literature: 0,
     art: 0,

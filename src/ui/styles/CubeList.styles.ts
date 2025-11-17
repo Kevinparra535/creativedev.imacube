@@ -136,3 +136,36 @@ export const Value = styled.span`
   color: #e0e0e0;
   font-family: "Courier New", monospace;
 `;
+
+export const CameraHint = styled.div<{ $locked: boolean }>`
+  margin: 0 0.75rem;
+  padding: 0.75rem 1rem;
+  background: ${(props) =>
+    props.$locked ? "rgba(76, 175, 80, 0.15)" : "rgba(255, 152, 0, 0.15)"};
+  border: 1px solid
+    ${(props) =>
+      props.$locked ? "rgba(76, 175, 80, 0.3)" : "rgba(255, 152, 0, 0.3)"};
+  border-radius: 8px;
+  color: ${(props) => (props.$locked ? "#81c784" : "#ffb74d")};
+  font-size: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  animation: fadeIn 0.3s ease;
+
+  span {
+    font-size: 0.75rem;
+    opacity: 0.8;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;

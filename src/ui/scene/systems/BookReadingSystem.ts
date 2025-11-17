@@ -20,7 +20,7 @@ export const DOMAIN_MAPPING: Record<string, string> = {
   "Física": "science", // Maps to science
   "Genética": "science", // Maps to science
   "Ética": "philosophy", // Maps to philosophy
-  "Teología": "philosophy", // Maps to philosophy
+  "Teología": "theology", // Separate domain
   "Historia": "literature", // Maps to literature
   "Política": "philosophy", // Maps to philosophy
   "Poesía": "literature", // Maps to literature

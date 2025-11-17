@@ -11,6 +11,7 @@ import {
   Detail,
   Label,
   Value,
+  CameraHint,
 } from "../styles/CubeList.styles";
 
 export type Personality =
@@ -33,11 +34,13 @@ interface CubeListProps {
   cubes: CubeData[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  cameraLocked?: boolean;
 }
 export default function CubeList({
   cubes,
   selectedId,
   onSelect,
+  cameraLocked,
 }: CubeListProps) {
   return (
     <Aside>
@@ -45,6 +48,13 @@ export default function CubeList({
         <h2>Cubos</h2>
         <Count>{cubes.length}</Count>
       </Header>
+
+      {selectedId && (
+        <CameraHint $locked={cameraLocked ?? true}>
+          {cameraLocked ? "🔒 Cámara bloqueada" : "🔓 Cámara libre"}
+          <span>Presiona ESPACIO para {cameraLocked ? "desbloquear" : "bloquear"}</span>
+        </CameraHint>
+      )}
 
       <ItemsContainer>
         {cubes.map((cube) => (

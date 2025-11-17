@@ -21,9 +21,11 @@ import { subscribe, getCube } from "./systems/Community";
 interface R3FCanvasProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
+  cameraLocked: boolean;
+  onCameraLockChange: (locked: boolean) => void;
 }
 
-export default function R3FCanvas({ selectedId, onSelect }: R3FCanvasProps) {
+export default function R3FCanvas({ selectedId, onSelect, cameraLocked, onCameraLockChange }: R3FCanvasProps) {
   const [hopSignal, setHopSignal] = useState(0);
   const bookMeshes = useRef<Mesh[]>([]);
   const [bookTargets, setBookTargets] = useState<Array<{ object: Mesh; type: "book"; domain?: string; difficulty?: "basic" | "intermediate" | "advanced" }>>([]);
@@ -49,11 +51,18 @@ export default function R3FCanvas({ selectedId, onSelect }: R3FCanvasProps) {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code === "Space") setHopSignal((s: number) => s + 1);
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (selectedId) {
+          onCameraLockChange(!cameraLocked);
+        } else {
+          setHopSignal((s: number) => s + 1);
+        }
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [selectedId, cameraLocked, onCameraLockChange]);
 
   return (
     <Canvas dpr={[1, 2]} shadows camera={{ position: [-10, 5, 10], fov: 50 }}>
@@ -114,13 +123,13 @@ export default function R3FCanvas({ selectedId, onSelect }: R3FCanvasProps) {
           </Selection>
         </Physics>
         <CameraControls ref={controlsRef} />
-        <FollowCamera selectedId={selectedId} controlsRef={controlsRef} />
+        <FollowCamera selectedId={selectedId} controlsRef={controlsRef} locked={cameraLocked} />
       </Suspense>
     </Canvas>
   );
 }
 
-function FollowCamera({ selectedId, controlsRef }: { selectedId: string | null; controlsRef: React.RefObject<CameraControls | null> }) {
+function FollowCamera({ selectedId, controlsRef, locked }: { selectedId: string | null; controlsRef: React.RefObject<CameraControls | null>; locked: boolean }) {
   const eye = useRef<[number, number, number]>([-10, 5, 10]);
   const target = useRef<[number, number, number] | null>(null);
   const followOffset = useRef<[number, number, number]>([-10, 6, 10]);
@@ -160,7 +169,7 @@ function FollowCamera({ selectedId, controlsRef }: { selectedId: string | null; 
   useFrame((_, delta) => {
     const controls = controlsRef.current;
     if (!controls) return;
-    if (!selectedId || !target.current) return;
+    if (!selectedId || !target.current || !locked) return;
 
     const [tx, ty, tz] = target.current;
 

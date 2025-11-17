@@ -5,7 +5,7 @@ import { Html } from "@react-three/drei";
 import { Select } from "@react-three/postprocessing";
 import type { Triplet } from "@react-three/cannon";
 import { Color, Euler, Quaternion, Vector3, Plane, MathUtils } from "three";
-import type { MeshStandardMaterial, Mesh } from "three";
+import type { MeshStandardMaterial, Mesh, PointLight } from "three";
 
 import { BubbleEyes, DotEyes } from "../objects";
 import { computeVisualTargets } from "../visual/visualState";
@@ -118,6 +118,7 @@ export default function Cube({
   const traitsAcquired = useRef<Set<string>>(new Set());
   const booksRead = useRef<string[]>([]);
   const conceptsLearned = useRef<Set<string>>(new Set());
+  const selLightRef = useRef<PointLight | null>(null);
   // Orientation/self-righting state
   const quatRef = useRef<[number, number, number, number]>([0, 0, 0, 1]);
   const uprightTarget = useRef<Quaternion | null>(null);
@@ -171,9 +172,9 @@ export default function Cube({
     else if (txt.includes("hmm") || txt.includes("zig") || txt.includes("bonito")) mood = "curious";
     // Priority 4: Personality baseline
     else {
-      if (personality === "extrovert") mood = "happy";
-      else if (personality === "chaotic") mood = "angry";
-      else if (personality === "curious") mood = "curious";
+      if (currentPersonality === "extrovert") mood = "happy";
+      else if (currentPersonality === "chaotic") mood = "angry";
+      else if (currentPersonality === "curious") mood = "curious";
     }
 
     switch (mood) {
@@ -490,7 +491,7 @@ export default function Cube({
             emotionsExperienced.current.add(emotion);
 
             // Progressively add key concepts from the book as knowledge topics
-            const conceptos = (book.propiedades as any).conceptos as string[] | undefined;
+            const conceptos = book.propiedades.conceptos;
             if (conceptos && conceptos.length > 0) {
               const idx = Math.floor(Math.min(0.999, readingState.current.readingProgress) * conceptos.length);
               for (let i = 0; i <= idx; i++) {
@@ -508,7 +509,11 @@ export default function Cube({
             const knowledgeGains = applyKnowledgeGains(knowledge.current as unknown as Record<string, number>, book, readSpeed);
             Object.keys(knowledgeGains).forEach(key => {
               if (key in knowledge.current) {
-                (knowledge.current as any)[key] = knowledgeGains[key];
+                // merge chunked gains into structured knowledge state
+                knowledge.current = {
+                  ...knowledge.current,
+                  [key]: knowledgeGains[key],
+                } as typeof knowledge.current;
               }
             });
             
@@ -538,7 +543,7 @@ export default function Cube({
               }
 
               // Ensure all concepts recorded at completion
-              const conceptosAll = (book.propiedades as any).conceptos as string[] | undefined;
+              const conceptosAll = book.propiedades.conceptos;
               if (conceptosAll && conceptosAll.length) {
                 conceptosAll.forEach((c) => conceptsLearned.current.add(c));
               }
@@ -554,7 +559,9 @@ export default function Cube({
                 pulseStrength.current = 0.8;
               }
               
-              // Clear reading state
+              // Clear reading state + brief visual flash via pulse/point light
+              // Mark a stronger pulse; the point light will reflect it
+              pulseStrength.current = Math.max(pulseStrength.current, 1);
               readingState.current = finishReading();
             }
           }
@@ -663,6 +670,16 @@ export default function Cube({
       ref.current.scale.y *= breath;
       ref.current.scale.x *= 1 - jitter * 0.5;
       ref.current.scale.z *= 1 + jitter * 0.5;
+
+      // Confusion wobble: subtle opposing X/Z oscillation when confused
+      const text = (thought || "").toLowerCase();
+      const confused = text.includes("confusión") || text.includes("no entiendo") || text.includes("¿") || text.includes("?");
+      if (confused) {
+        const wobbleAmp = 0.03;
+        const wobble = Math.sin(t * 6 + (id.charCodeAt(0) % 11)) * wobbleAmp;
+        ref.current.scale.x *= 1 + wobble;
+        ref.current.scale.z *= 1 - wobble;
+      }
     }
 
     // Apply learning pulse overlay to scale (uniform) and material emissive
@@ -776,6 +793,19 @@ export default function Cube({
         }
       }
     }
+    // Face the camera gently when selected and idle-ish
+    if (selected && !isNavigating.current && (phase.current === "idle" || phase.current === "settle" || phase.current === "observing")) {
+      const cam = state.camera.position;
+      const [cx, , cz] = cubePos.current;
+      const dx = cam.x - cx;
+      const dz = cam.z - cz;
+      const yaw = Math.atan2(dx, dz);
+      const desired = new Quaternion().setFromEuler(new Euler(0, yaw, 0, "YXZ"));
+      const qNow = tmpQ.current.set(quatRef.current[0], quatRef.current[1], quatRef.current[2], quatRef.current[3]);
+      qNow.slerp(desired, Math.min(1, 4 * delta));
+      api.quaternion.set(qNow.x, qNow.y, qNow.z, qNow.w);
+    }
+
     // Update material from visual targets each frame, including pulse emissive boost
     if (materialRef.current) {
       const vis = computeVisualTargets(
@@ -789,10 +819,19 @@ export default function Cube({
         new Color(vis.color).multiplyScalar(0.4)
       );
       const pulseEmissiveBoost = 0.4 * pulseStrength.current;
-      materialRef.current.emissiveIntensity =
-        vis.emissiveIntensity + pulseEmissiveBoost;
+      let emi = vis.emissiveIntensity + pulseEmissiveBoost;
+      if (currentPersonality === "chaotic") {
+        const flick = 0.06 * (0.5 + 0.5 * Math.sin(t * 18 + (id.charCodeAt(0) % 7)));
+        emi += flick;
+      }
+      materialRef.current.emissiveIntensity = emi;
       materialRef.current.roughness = vis.roughness;
       materialRef.current.metalness = vis.metalness;
+    }
+
+    // Update selected point light intensity from pulse
+    if (selLightRef.current) {
+      selLightRef.current.intensity = selected ? 0.6 + 1.6 * pulseStrength.current : 0;
     }
   });
 
@@ -896,6 +935,17 @@ export default function Cube({
             />
           );
         })()}
+
+        {selected ? (
+          <pointLight
+            ref={selLightRef}
+            position={[0, 1.2, 0]}
+            color="#ffd166"
+            distance={14}
+            decay={2}
+            intensity={0}
+          />
+        ) : null}
 
         <Html position={[0, 1.4, 0]} occlude={true} transform sprite>
           <div

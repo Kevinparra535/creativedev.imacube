@@ -8,6 +8,7 @@ import { useCommunityCubes } from "./hooks/useCommunityStore";
 
 function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [cameraLocked, setCameraLocked] = useState(true);
   const live = useCommunityCubes();
 
   // Merge static config with live registry (position/capabilities)
@@ -27,8 +28,8 @@ function App() {
   return (
     <>
       <GlobalStyles />
-      <R3FCanvas selectedId={selectedId} onSelect={setSelectedId} />
-      <CubeList cubes={cubesLive} selectedId={selectedId} onSelect={setSelectedId} />
+      <R3FCanvas selectedId={selectedId} onSelect={setSelectedId} cameraLocked={cameraLocked} onCameraLockChange={setCameraLocked} />
+      <CubeList cubes={cubesLive} selectedId={selectedId} onSelect={setSelectedId} cameraLocked={cameraLocked} />
       <CubeFooter cubes={cubesLive} selectedId={selectedId} />
     </>
   );
