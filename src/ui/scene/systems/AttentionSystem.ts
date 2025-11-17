@@ -23,6 +23,9 @@ export interface AttentionTarget {
   discoveredAt: number;     // timestamp cuando se descubrió
   lastVisitedAt?: number;   // timestamp de última visita
   visitCount: number;       // cuántas veces ha visitado
+  // Opcional: metadatos para libros
+  domain?: string;
+  difficulty?: 'basic' | 'intermediate' | 'advanced';
 }
 
 export interface AttentionState {
@@ -149,14 +152,14 @@ export function scanForTargets(
   cubePosition: [number, number, number],
   personality: Personality,
   targetHistory: AttentionTarget[],
-  availableTargets: Array<{ object: Object3D; type: TargetType }>
+  availableTargets: Array<{ object: Object3D; type: TargetType; domain?: string; difficulty?: 'basic' | 'intermediate' | 'advanced' }>
 ): AttentionTarget | null {
   const MIN_INTEREST = 0.15; // Umbral mínimo para considerar un objetivo (más permisivo)
 
   let bestTarget: AttentionTarget | null = null;
   let bestInterest = MIN_INTEREST;
 
-  for (const { object, type } of availableTargets) {
+  for (const { object, type, domain, difficulty } of availableTargets) {
     const targetPos = object.position;
     const distance = Math.sqrt(
       (targetPos.x - cubePosition[0]) ** 2 +
@@ -181,6 +184,8 @@ export function scanForTargets(
         discoveredAt: Date.now(),
         visitCount,
         lastVisitedAt: historyEntry?.lastVisitedAt,
+        domain,
+        difficulty,
       };
     }
   }

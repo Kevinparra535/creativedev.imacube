@@ -52,7 +52,25 @@ export function tryLearnFromNeighbors(
 
 // Spontaneous discovery chance (bootstrapping) — higher for curious
 export function spontaneousDiscovery(personality: Personality, capability: Capability): boolean {
-  const base = capability === "navigation" ? 0.06 : 0.04; // navigation easier to stumble upon
-  const boost = personality === "curious" ? 0.06 : personality === "extrovert" ? 0.03 : 0;
+  const base = capability === "navigation" ? 0.01 : 0.005; // much slower by default
+  let boost = 0;
+  switch (personality) {
+    case "curious":
+      boost = capability === "navigation" ? 0.02 : 0.01;
+      break;
+    case "extrovert":
+      boost = capability === "navigation" ? 0.01 : 0.005;
+      break;
+    case "neutral":
+      boost = 0.006;
+      break;
+    case "chaotic":
+      boost = 0.004;
+      break;
+    case "calm":
+    default:
+      boost = 0.001;
+      break;
+  }
   return Math.random() < base + boost;
 }

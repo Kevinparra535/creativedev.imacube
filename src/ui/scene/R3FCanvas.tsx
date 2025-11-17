@@ -24,7 +24,7 @@ interface R3FCanvasProps {
 export default function R3FCanvas({ selectedId, onSelect }: R3FCanvasProps) {
   const [hopSignal, setHopSignal] = useState(0);
   const bookMeshes = useRef<Mesh[]>([]);
-  const [bookTargets, setBookTargets] = useState<Array<{ object: Mesh; type: "book" }>>([]);
+  const [bookTargets, setBookTargets] = useState<Array<{ object: Mesh; type: "book"; domain?: string; difficulty?: "basic" | "intermediate" | "advanced" }>>([]);
 
   const iceTextureMap = useLoader(TextureLoader, "/textures/ice_texture.jpg");
   const lavaTextureMap = useLoader(TextureLoader, "/textures/lava_texture.jpg");
@@ -32,7 +32,15 @@ export default function R3FCanvas({ selectedId, onSelect }: R3FCanvasProps) {
   const handleBookReady = useCallback((mesh: Mesh) => {
     if (!bookMeshes.current.includes(mesh)) {
       bookMeshes.current.push(mesh);
-      setBookTargets((prev) => [...prev, { object: mesh, type: "book" }]);
+      setBookTargets((prev) => [
+        ...prev,
+        {
+          object: mesh,
+          type: "book",
+          domain: mesh.userData?.domain,
+          difficulty: mesh.userData?.difficulty,
+        },
+      ]);
     }
   }, []);
 

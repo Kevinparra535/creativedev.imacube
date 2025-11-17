@@ -17,8 +17,12 @@ import {
   PanelTitle,
 } from "../styles/CubeFooter.styles";
 
+type FooterCube = CubeData & {
+  capabilities?: { navigation: boolean; selfRighting: boolean };
+};
+
 interface CubeFooterProps {
-  cubes: CubeData[];
+  cubes: FooterCube[];
   selectedId: string | null;
 }
 
@@ -193,11 +197,17 @@ export default function CubeFooter({ cubes, selectedId }: CubeFooterProps) {
     // Knowledge nodes
     const knowledgeData = [
       { label: "Física básica", active: true },
-      { label: "Auto-enderezamiento", active: true },
-      { label: "Saltos calculados", active: selectedCube.auto },
+      {
+        label: "Auto-enderezamiento",
+        active: !!selectedCube.capabilities?.selfRighting,
+      },
+      {
+        label: "Saltos calculados",
+        active: !!selectedCube.capabilities?.navigation,
+      },
       { label: "Expresión facial", active: selectedCube.eyeStyle === "bubble" },
-      { label: "Interacción social", active: false },
-      { label: "Aprendizaje activo", active: false },
+      { label: "Interacción social", active: true },
+      { label: "Aprendizaje activo", active: true },
     ];
 
     knowledgeData.forEach((knowledge, idx) => {
