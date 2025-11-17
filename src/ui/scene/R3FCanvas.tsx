@@ -1,8 +1,9 @@
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useCallback, useRef } from "react";
 import { Canvas, useLoader } from "@react-three/fiber";
 import { Physics } from "@react-three/cannon";
 import { CameraControls } from "@react-three/drei";
 import { TextureLoader } from "three";
+import type { Mesh } from "three";
 import {
   Selection,
   EffectComposer,
@@ -22,9 +23,18 @@ interface R3FCanvasProps {
 
 export default function R3FCanvas({ selectedId, onSelect }: R3FCanvasProps) {
   const [hopSignal, setHopSignal] = useState(0);
+  const bookMeshes = useRef<Mesh[]>([]);
+  const [bookTargets, setBookTargets] = useState<Array<{ object: Mesh; type: "book" }>>([]);
 
   const iceTextureMap = useLoader(TextureLoader, "/textures/ice_texture.jpg");
   const lavaTextureMap = useLoader(TextureLoader, "/textures/lava_texture.jpg");
+
+  const handleBookReady = useCallback((mesh: Mesh) => {
+    if (!bookMeshes.current.includes(mesh)) {
+      bookMeshes.current.push(mesh);
+      setBookTargets((prev) => [...prev, { object: mesh, type: "book" }]);
+    }
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -60,7 +70,7 @@ export default function R3FCanvas({ selectedId, onSelect }: R3FCanvasProps) {
           <Ambients groupPosition={[-40, 0, -40]} textureMap={iceTextureMap} />
           <Ambients groupPosition={[40, 0, -40]} textureMap={lavaTextureMap} />
 
-          <Books length={20} />
+          <Books length={20} onBookReady={handleBookReady} />
 
           <Selection>
             <EffectComposer multisampling={8} autoClear={false}>
@@ -84,6 +94,7 @@ export default function R3FCanvas({ selectedId, onSelect }: R3FCanvasProps) {
                   selected={selectedId === cube.id}
                   hopSignal={hopSignal}
                   onSelect={onSelect}
+                  bookTargets={bookTargets}
                 />
               ))}
             </group>

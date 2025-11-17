@@ -38,6 +38,7 @@ interface BookProps {
   rotation: [number, number, number];
   size?: [number, number, number];
   color: number;
+  onReady?: (mesh: THREE.Mesh) => void;
   [key: string]: unknown;
 }
 
@@ -46,6 +47,7 @@ export function Book({
   rotation,
   size = [1.5, 1, 0.15],
   color,
+  onReady,
   ...props
 }: BookProps) {
   const [ref] = useBox(() => ({
@@ -60,14 +62,28 @@ export function Book({
   }));
 
   return (
-    <mesh ref={ref} castShadow receiveShadow>
+    <mesh
+      ref={(mesh) => {
+        // @ts-expect-error ref type mismatch
+        ref.current = mesh;
+        if (mesh && onReady) onReady(mesh);
+      }}
+      castShadow
+      receiveShadow
+    >
       <boxGeometry args={size} />
       <meshLambertMaterial color={color} toneMapped={false} />
     </mesh>
   );
 }
 
-export function Books({ length = 50 }) {
+export function Books({
+  length = 50,
+  onBookReady,
+}: {
+  length?: number;
+  onBookReady?: (mesh: THREE.Mesh) => void;
+}) {
   const [books] = useState(() => {
     const sandboxSize = 100;
     const halfSize = sandboxSize / 2;
@@ -99,7 +115,7 @@ export function Books({ length = 50 }) {
   return (
     <>
       {books.map((book) => (
-        <Book key={book.id} {...book} />
+        <Book key={book.id} {...book} onReady={onBookReady} />
       ))}
     </>
   );

@@ -13,10 +13,18 @@ import {
   Value,
 } from "../styles/CubeList.styles";
 
+export type Personality =
+  | "calm"
+  | "extrovert"
+  | "curious"
+  | "chaotic"
+  | "neutral";
+export type EyeStyle = "bubble" | "dot";
+
 export interface CubeData {
   id: string;
-  personality?: string;
-  eyeStyle?: string;
+  personality?: Personality;
+  eyeStyle?: EyeStyle;
   auto?: boolean;
   position?: [number, number, number];
 }
@@ -48,9 +56,7 @@ export default function CubeList({
             <ItemHeader>
               <ItemId>{cube.id}</ItemId>
               {cube.auto !== undefined && (
-                <Mode $auto={cube.auto}>
-                  {cube.auto ? "Auto" : "Manual"}
-                </Mode>
+                <Mode $auto={cube.auto}>{cube.auto ? "Auto" : "Manual"}</Mode>
               )}
             </ItemHeader>
 
@@ -71,8 +77,9 @@ export default function CubeList({
                 <Detail>
                   <Label>Posición:</Label>
                   <Value>
-                    ({cube.position[0].toFixed(1)}, {cube.position[1].toFixed(1)},{" "}
-                    {cube.position[2].toFixed(1)})
+                    ({cube.position[0].toFixed(1)},{" "}
+                    {cube.position[1].toFixed(1)}, {cube.position[2].toFixed(1)}
+                    )
                   </Value>
                 </Detail>
               )}

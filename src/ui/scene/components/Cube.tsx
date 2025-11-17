@@ -5,11 +5,31 @@ import { Html } from "@react-three/drei";
 import { Select } from "@react-three/postprocessing";
 import type { Triplet } from "@react-three/cannon";
 import { Color, Euler, Quaternion, Vector3, Plane, MathUtils } from "three";
-import type { MeshStandardMaterial } from "three";
+import type { MeshStandardMaterial, Mesh } from "three";
 
 import { BubbleEyes, DotEyes } from "../objects";
 import { computeVisualTargets } from "../visual/visualState";
 import type { Personality } from "../visual/visualState";
+import {
+  scanForTargets,
+  isBoredOf,
+  recordVisit,
+  createAttentionState,
+} from "../systems/AttentionSystem";
+import {
+  computeJumpDirection,
+  getJumpStrength,
+  getJumpInterval,
+  computeTargetOrientation,
+  slerpToTarget,
+  hasArrivedAt,
+  createNavigationState,
+  startNavigation,
+  stopNavigation,
+} from "../systems/NavigationSystem";
+import { registerCube, unregisterCube, updateCube, getNeighbors } from "../systems/Community";
+import { tryLearnFromNeighbors, spontaneousDiscovery } from "../systems/SocialLearningSystem";
+import { applyBookEffects, createKnowledgeState, SAMPLE_BOOKS } from "../guidelines/instrucciones";
 
 import "../../styles/ThoughtBubble.css";
 
@@ -23,6 +43,7 @@ export interface CubeProps {
   learningPulseSignal?: number; // increment to trigger a learning pulse
   onSelect?: (id: string) => void;
   position?: Triplet;
+  bookTargets?: Array<{ object: Mesh; type: "book" }>; // Available books for attention system
   [key: string]: unknown;
 }
 
@@ -35,6 +56,7 @@ export default function Cube({
   personality = "calm",
   learningPulseSignal = 0,
   onSelect,
+  bookTargets = [],
   ...props
 }: CubeProps) {
   const [ref, api] = useBox(() => ({
@@ -48,7 +70,8 @@ export default function Cube({
   const [hovered, setHovered] = useState(false);
   const [thought, setThought] = useState<string>("...");
 
-  const phase = useRef<"idle" | "squash" | "air" | "land" | "settle">("idle");
+  type CubePhase = "idle" | "squash" | "air" | "land" | "settle" | "scanning" | "interested" | "navigating" | "observing";
+  const phase = useRef<CubePhase>("idle");
   const phaseStart = useRef(0);
   const nextHopAt = useRef(0);
   const dir = useRef<[number, number]>([0, 0]);
@@ -57,9 +80,16 @@ export default function Cube({
   const yPos = useRef(0);
   const velY = useRef(0);
   const lastHopSignal = useRef(0);
-  const lastPhase = useRef<"idle" | "squash" | "air" | "land" | "settle">(
-    "idle"
-  );
+  const lastPhase = useRef<CubePhase>("idle");
+
+  // Attention & Navigation state
+  const attentionState = useRef(createAttentionState());
+  const navigationState = useRef(createNavigationState());
+  const lastScanTime = useRef(0);
+  const [scanInterval] = useState(() => 3 + Math.random() * 4); // Random scan interval per cube (React 19 purity)
+  const cubePos = useRef<[number, number, number]>([0, 0, 0]);
+  const cubeVel = useRef<[number, number, number]>([0, 0, 0]);
+  const isNavigating = useRef(false); // Track if actively navigating
 
   // Orientation/self-righting state
   const quatRef = useRef<[number, number, number, number]>([0, 0, 0, 1]);
@@ -73,6 +103,16 @@ export default function Cube({
   const tmpV3 = useRef(new Vector3());
   const tmpScale = useRef(new Vector3());
 
+  // Navigation jump animation overlay (keeps main phase as 'navigating')
+  const navJumpPhase = useRef<"idle" | "squash" | "air" | "land" | "settle">("idle");
+  const navJumpStart = useRef(0);
+
+  // Social learning & capabilities
+  const [socialTrait] = useState<"kind" | "selfish">(() => (Math.random() < 0.6 ? "kind" : "selfish"));
+  const capabilities = useRef({ selfRighting: false, navigation: false });
+  const lastLearnCheck = useRef(0);
+  const knowledge = useRef(createKnowledgeState());
+
   // Eyes targets derived from thought and personality
   const { eyeTargetScale, eyeTargetLook, mood } = useMemo(() => {
     const txt = (thought || "").toLowerCase();
@@ -80,22 +120,30 @@ export default function Cube({
     
     // Priority 1: Physical jump phases (temporary emotional states)
     if (txt.includes("preparando")) mood = "prep";
-    else if (txt.includes("weee") || txt.includes("!")) mood = "happy"; // Changed from "air" to "happy"
+    else if (txt.includes("weee") || txt.includes("!")) mood = "happy";
     else if (txt.includes("plof")) mood = "land";
-    // Priority 2: Cognitive/emotional states
+    // Priority 2: Navigation/cognitive states
     else if (
-      txt.includes("hmm") ||
+      txt.includes("qué hay") ||
       txt.includes("¿") ||
       txt.includes("?") ||
-      txt.includes("zig") ||
-      txt.includes("bonito")
+      txt.includes("déjame ver")
     )
       mood = "curious";
+    else if (
+      txt.includes("se ve interesante") ||
+      txt.includes("voy hacia") ||
+      txt.includes("allá")
+    )
+      mood = "happy";
+    // Priority 3: Emotional keywords
     else if (txt.includes("triste") || txt.includes("😢"))
       mood = "sad";
     else if (txt.includes("enojado") || txt.includes("grr") || txt.includes("frustrado"))
       mood = "angry";
-    // Priority 3: Personality baseline (only check personality, don't access phase ref)
+    else if (txt.includes("hmm") || txt.includes("zig") || txt.includes("bonito"))
+      mood = "curious";
+    // Priority 4: Personality baseline
     else {
       if (personality === "extrovert") mood = "happy";
       else if (personality === "chaotic") mood = "angry";
@@ -160,17 +208,25 @@ export default function Cube({
   ]);
 
   useEffect(() => {
-    const unsubPos = api.position.subscribe(([, y]) => {
+    const unsubPos = api.position.subscribe(([x, y, z]) => {
       yPos.current = y;
+      cubePos.current = [x, y, z];
     });
-    const unsubVel = api.velocity.subscribe(([, vy]) => {
+    const unsubVel = api.velocity.subscribe(([vx, vy, vz]) => {
       velY.current = vy;
+      cubeVel.current = [vx, vy, vz];
     });
     return () => {
       unsubPos();
       unsubVel();
     };
   }, [api.position, api.velocity]);
+
+  // Initialize early first scan so they start choosing targets quickly
+  useEffect(() => {
+    // Trigger first scan around 0.5s
+    lastScanTime.current = -scanInterval + 0.5;
+  }, [scanInterval]);
 
   // Subscribe to quaternion to track current orientation
   useEffect(() => {
@@ -182,6 +238,21 @@ export default function Cube({
     };
   }, [api.quaternion]);
 
+  // Register cube in community on mount and unregister on unmount
+  useEffect(() => {
+    registerCube({
+      id,
+      position: cubePos.current,
+      // Personality types may differ across modules; cast to any to satisfy both
+      personality: (personality as any),
+      socialTrait,
+      capabilities: capabilities.current,
+    });
+    return () => {
+      unregisterCube(id);
+    };
+  }, [id, personality, socialTrait]);
+
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
 
@@ -191,6 +262,208 @@ export default function Cube({
       pulseStrength.current = 1;
     }
 
+    // ────────────────────────────────────────────────────────────────
+    // COMMUNITY UPDATE & SOCIAL LEARNING TICK
+    // ────────────────────────────────────────────────────────────────
+    // Keep public state updated
+    updateCube(id, { position: cubePos.current, capabilities: capabilities.current });
+    // Periodically attempt to learn missing capabilities
+    if (t - lastLearnCheck.current > 2) {
+      lastLearnCheck.current = t;
+      const needs: Array<keyof typeof capabilities.current> = [];
+      if (!capabilities.current.navigation) needs.push("navigation");
+      if (!capabilities.current.selfRighting) needs.push("selfRighting");
+      if (needs.length) {
+        // Try spontaneous discovery first
+        let discovered = false;
+        for (const need of needs) {
+          if (spontaneousDiscovery(personality as any, need as any)) {
+            (capabilities.current as any)[need] = true;
+            discovered = true;
+            setThought(need === "navigation" ? "¡Creo que aprendí a moverme!" : "¡Puedo enderezarme solo!");
+            pulseStrength.current = 1;
+          }
+        }
+        if (!discovered) {
+          const neighbors = getNeighbors(id, cubePos.current, 6);
+          const outcome = tryLearnFromNeighbors(
+            {
+              id,
+              position: cubePos.current,
+              personality: (personality as any),
+              socialTrait,
+              capabilities: capabilities.current,
+            } as any,
+            neighbors,
+            needs as any
+          );
+          if (outcome && outcome.learned) {
+            Object.assign(capabilities.current, outcome.learned);
+            setThought(
+              outcome.taughtBy
+                ? `¡Gracias ${outcome.taughtBy}, aprendí algo nuevo!`
+                : "¡Aprendí algo nuevo!"
+            );
+            pulseStrength.current = 1;
+          }
+        }
+      }
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // ATTENTION & NAVIGATION SYSTEM (only in auto mode)
+    // ────────────────────────────────────────────────────────────────
+    if (auto) {
+      const att = attentionState.current;
+      const nav = navigationState.current;
+
+      // SCANNING: Periodic scan for interesting targets
+      // Allow scanning whenever not actively navigating to find goals sooner
+      if (!isNavigating.current && t - lastScanTime.current > scanInterval) {
+        lastScanTime.current = t;
+        
+        const target = scanForTargets(
+          cubePos.current,
+          personality,
+          att.targetHistory,
+          bookTargets
+        );
+
+        if (target && !att.currentTarget) {
+          // Found something interesting!
+          att.currentTarget = target;
+          att.interestTimer = 0;
+          phase.current = "interested";
+          phaseStart.current = t;
+        }
+      }
+
+      // INTERESTED: Decided to navigate toward target
+      if (phase.current === "interested" && att.currentTarget) {
+        if (capabilities.current.navigation) {
+          // Start navigation
+          Object.assign(nav, startNavigation(att.currentTarget.position));
+          phase.current = "navigating";
+          isNavigating.current = true;
+          phaseStart.current = t;
+        } else {
+          // Can't navigate yet — observe briefly and try to learn
+          setThought("Quiero moverme... ¿alguien me enseña?");
+          phase.current = "observing";
+          phaseStart.current = t;
+          attentionState.current.interestTimer = 0;
+        }
+      }
+
+      // NAVIGATING: Moving toward target
+      if (phase.current === "navigating" && nav.targetPosition) {
+        // Check if arrived
+        if (hasArrivedAt(cubePos.current, nav.targetPosition, cubeVel.current)) {
+          // Arrived! Switch to observing
+          phase.current = "observing";
+                    isNavigating.current = false;
+          phaseStart.current = t;
+          att.interestTimer = 0;
+          
+          // Record visit in memory
+          if (att.currentTarget) {
+            att.targetHistory = recordVisit(att.targetHistory, att.currentTarget);
+          }
+
+          // Apply book learning effects if the target is a book
+          if (att.currentTarget && att.currentTarget.type === "book") {
+            const book = SAMPLE_BOOKS[Math.floor(Math.random() * SAMPLE_BOOKS.length)];
+            const res = applyBookEffects(knowledge.current, book, personality as any);
+            knowledge.current = res.knowledge;
+            // Briefly express the emotion
+            const emo = res.emotive.dominantEmotion;
+            if (emo === "happy") setThought("Aprendí algo y me siento feliz");
+            else if (emo === "curious") setThought("Esto despierta mi curiosidad");
+            else if (emo === "sad") setThought("Esto me hizo pensar profundamente");
+            else if (emo === "angry") setThought("Esto me inquieta un poco");
+            pulseStrength.current = 1;
+          }
+        } else {
+          // Continue navigating: orient and jump periodically
+          const timeSinceLastJump = t - nav.lastJumpAt;
+          const jumpInterval = getJumpInterval(personality);
+
+          if (capabilities.current.navigation && timeSinceLastJump > jumpInterval && phase.current === "navigating") {
+            // Compute direction toward target
+            const [dx, , dz] = computeJumpDirection(
+              cubePos.current,
+              nav.targetPosition,
+              personality
+            );
+
+            if (dx !== 0 || dz !== 0) {
+              // Apply jump impulse
+              const jumpStrength = getJumpStrength(personality);
+              api.applyImpulse([dx, jumpStrength, dz], [0, 0, 0]);
+              nav.lastJumpAt = t;
+              // Trigger jump animation overlay without leaving navigating
+              navJumpPhase.current = "squash";
+              navJumpStart.current = t;
+              targetScale.current = [1.25, 0.75, 1.25];
+            }
+          }
+
+          // Orient toward target if can navigate
+          if (capabilities.current.navigation) {
+            const targetQuat = computeTargetOrientation(cubePos.current, nav.targetPosition);
+            const currentQuat = tmpQ.current.set(
+              quatRef.current[0],
+              quatRef.current[1],
+              quatRef.current[2],
+              quatRef.current[3]
+            );
+            const newQuat = slerpToTarget(currentQuat, targetQuat, 0.1);
+            api.quaternion.set(newQuat.x, newQuat.y, newQuat.z, newQuat.w);
+          }
+        }
+      }
+
+      // Progress navigation jump animation overlay
+      if (phase.current === "navigating" && navJumpPhase.current !== "idle") {
+        const elapsed = t - navJumpStart.current;
+        if (navJumpPhase.current === "squash" && elapsed > 0.18) {
+          navJumpPhase.current = "air";
+          navJumpStart.current = t;
+          targetScale.current = [0.9, 1.1, 0.9];
+        } else if (navJumpPhase.current === "air") {
+          if (yPos.current <= 0.52 && velY.current < -0.2) {
+            navJumpPhase.current = "land";
+            navJumpStart.current = t;
+            targetScale.current = [1.3, 0.7, 1.3];
+          }
+        } else if (navJumpPhase.current === "land" && elapsed > 0.12) {
+          navJumpPhase.current = "settle";
+          navJumpStart.current = t;
+          targetScale.current = [1, 1, 1];
+        } else if (navJumpPhase.current === "settle" && elapsed > 0.08) {
+          navJumpPhase.current = "idle";
+        }
+      }
+
+      // OBSERVING: At target, check for boredom
+      if (phase.current === "observing" && att.currentTarget) {
+        att.interestTimer += delta;
+
+        if (isBoredOf(att.currentTarget, personality, att.interestTimer)) {
+          // Bored! Reset to idle and look for something else
+          att.currentTarget = null;
+          Object.assign(nav, stopNavigation());
+          phase.current = "idle";
+          phaseStart.current = t;
+          nextHopAt.current = t + 1; // Small delay before next scan
+                  isNavigating.current = false;
+        }
+      }
+    }
+
+    // ────────────────────────────────────────────────────────────────
+    // MANUAL/AUTO HOP SYSTEM (original behavior)
+    // ────────────────────────────────────────────────────────────────
     if (!auto) {
       if (
         selected &&
@@ -288,57 +561,71 @@ export default function Cube({
         case "settle":
           setThought("Listo otra vez.");
           break;
+        case "scanning":
+          setThought("¿Qué hay por aquí?");
+          break;
+        case "interested":
+          setThought("¡Eso se ve interesante!");
+          break;
+        case "navigating":
+          setThought("¡Voy hacia allá!");
+          break;
+        case "observing":
+          setThought("Déjame ver...");
+          break;
         default:
           setThought("...");
       }
     }
 
-    // Self-righting: detect tilt and gently re-orient upright
-    // Compute current up-vector in world space
-    const q = tmpQ.current.set(
-      quatRef.current[0],
-      quatRef.current[1],
-      quatRef.current[2],
-      quatRef.current[3]
-    );
-    const up = tmpUp.current.set(0, 1, 0).applyQuaternion(q);
-    const dot = Math.max(-1, Math.min(1, up.y));
-    const tilt = Math.acos(dot); // radians from world-up
-
-    // If significantly tilted and we don't already have a target, compute it
-    if (tilt > 0.6 && uprightTarget.current == null) {
-      const e = tmpEuler.current.setFromQuaternion(q, "YXZ");
-      const yaw = e.y;
-      uprightTarget.current = new Quaternion().setFromEuler(
-        new Euler(0, yaw, 0, "YXZ")
+    // Self-righting: gated by learned capability
+    if (capabilities.current.selfRighting) {
+      // Compute current up-vector in world space
+      const q = tmpQ.current.set(
+        quatRef.current[0],
+        quatRef.current[1],
+        quatRef.current[2],
+        quatRef.current[3]
       );
-      if (phase.current === "idle") {
-        phase.current = "squash";
-        phaseStart.current = t;
-        targetScale.current = [1.25, 0.75, 1.25];
-      }
-    }
+      const up = tmpUp.current.set(0, 1, 0).applyQuaternion(q);
+      const dot = Math.max(-1, Math.min(1, up.y));
+      const tilt = Math.acos(dot); // radians from world-up
 
-    // If we have a target upright orientation, slerp towards it
-    if (uprightTarget.current) {
-      // Dampen spin while correcting
-      api.angularVelocity.set(0, 0, 0);
-      const alpha = Math.min(1, 8 * delta);
-      q.slerp(uprightTarget.current, alpha);
-      api.quaternion.set(q.x, q.y, q.z, q.w);
-
-      // Clear target when aligned closely during settle/idle
-      if (
-        q.angleTo(uprightTarget.current) < 0.02 &&
-        (phase.current === "settle" || phase.current === "idle")
-      ) {
-        api.quaternion.set(
-          uprightTarget.current.x,
-          uprightTarget.current.y,
-          uprightTarget.current.z,
-          uprightTarget.current.w
+      // If significantly tilted and we don't already have a target, compute it
+      if (tilt > 0.6 && uprightTarget.current == null) {
+        const e = tmpEuler.current.setFromQuaternion(q, "YXZ");
+        const yaw = e.y;
+        uprightTarget.current = new Quaternion().setFromEuler(
+          new Euler(0, yaw, 0, "YXZ")
         );
-        uprightTarget.current = null;
+        if (phase.current === "idle") {
+          phase.current = "squash";
+          phaseStart.current = t;
+          targetScale.current = [1.25, 0.75, 1.25];
+        }
+      }
+
+      // If we have a target upright orientation, slerp towards it
+      if (uprightTarget.current) {
+        // Dampen spin while correcting
+        api.angularVelocity.set(0, 0, 0);
+        const alpha = Math.min(1, 8 * delta);
+        q.slerp(uprightTarget.current, alpha);
+        api.quaternion.set(q.x, q.y, q.z, q.w);
+
+        // Clear target when aligned closely during settle/idle
+        if (
+          q.angleTo(uprightTarget.current) < 0.02 &&
+          (phase.current === "settle" || phase.current === "idle")
+        ) {
+          api.quaternion.set(
+            uprightTarget.current.x,
+            uprightTarget.current.y,
+            uprightTarget.current.z,
+            uprightTarget.current.w
+          );
+          uprightTarget.current = null;
+        }
       }
     }
     // Update material from visual targets each frame, including pulse emissive boost
