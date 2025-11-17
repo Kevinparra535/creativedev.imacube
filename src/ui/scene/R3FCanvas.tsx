@@ -1,4 +1,11 @@
-import { Suspense, useEffect, useState, useCallback, useRef } from "react";
+import {
+  Suspense,
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import { Canvas, useLoader } from "@react-three/fiber";
 import { Physics } from "@react-three/cannon";
 import { CameraControls } from "@react-three/drei";
@@ -42,6 +49,25 @@ export default function R3FCanvas({
     }>
   >([]);
   const controlsRef = useRef<CameraControls | null>(null);
+  const mirrorPosition: [number, number, number] = [-49.5, 5, 0]; // Mirror position on left wall
+
+  // Ambient exploration zones
+  const ambientZones = useMemo(
+    () => [
+      {
+        position: [-40, 0, -40] as [number, number, number],
+        type: "ice" as const,
+      },
+      {
+        position: [40, 0, -40] as [number, number, number],
+        type: "lava" as const,
+      },
+    ],
+    []
+  );
+
+  // All cube IDs for social exploration
+  const allCubeIds = useMemo(() => CUBES_CONFIG.map((c) => c.id), []);
 
   const iceTextureMap = useLoader(TextureLoader, "/textures/ice_texture.jpg");
   const lavaTextureMap = useLoader(TextureLoader, "/textures/lava_texture.jpg");
@@ -99,7 +125,7 @@ export default function R3FCanvas({
         >
           <SandBox />
 
-          <Mirror rotation={[0, Math.PI / 2, 0]} position={[-10, 5, 0]} />
+          <Mirror rotation={[0, Math.PI / 2, 0]} position={[-49.5, 5, 0]} />
 
           <Ambients groupPosition={[-40, 0, -40]} textureMap={iceTextureMap} />
           <Ambients groupPosition={[40, 0, -40]} textureMap={lavaTextureMap} />
@@ -129,6 +155,9 @@ export default function R3FCanvas({
                   hopSignal={hopSignal}
                   onSelect={onSelect}
                   bookTargets={bookTargets}
+                  mirrorPosition={mirrorPosition}
+                  allCubeIds={allCubeIds}
+                  ambientZones={ambientZones}
                 />
               ))}
             </group>

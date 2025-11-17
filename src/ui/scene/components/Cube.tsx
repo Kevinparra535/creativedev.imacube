@@ -32,6 +32,7 @@ import {
   unregisterCube,
   updateCube,
   getNeighbors,
+  getCube,
 } from "../systems/Community";
 import {
   tryLearnFromNeighbors,
@@ -75,6 +76,12 @@ export interface CubeProps {
     domain?: string;
     difficulty?: "basic" | "intermediate" | "advanced";
   }>; // Available books for attention system
+  mirrorPosition?: [number, number, number]; // Mirror position for self-recognition
+  allCubeIds?: string[]; // All cube IDs for social exploration
+  ambientZones?: Array<{
+    position: [number, number, number];
+    type: "ice" | "lava";
+  }>; // Ambient exploration zones
   [key: string]: unknown;
 }
 
@@ -88,6 +95,9 @@ export default function Cube({
   learningPulseSignal = 0,
   onSelect,
   bookTargets = [],
+  mirrorPosition,
+  allCubeIds = [],
+  ambientZones = [],
   ...props
 }: CubeProps) {
   const [ref, api] = useBox(() => ({
@@ -99,6 +109,12 @@ export default function Cube({
   }));
 
   const [hovered, setHovered] = useState(false);
+  const [mirrorRecognitionPhase, setMirrorRecognitionPhase] = useState<
+    "none" | "noticing" | "curious" | "recognized" | "reflecting"
+  >("none");
+  const mirrorRecognitionStart = useRef(0);
+  const hasRecognizedSelf = useRef(false);
+  const lastMirrorCheck = useRef(0);
   const [thought, setThought] = useState<string>("...");
 
   type CubePhase =
@@ -414,6 +430,112 @@ export default function Cube({
     }
 
     // ────────────────────────────────────────────────────────────────
+    // MIRROR SELF-RECOGNITION SYSTEM
+    // ────────────────────────────────────────────────────────────────
+    if (mirrorPosition && t - lastMirrorCheck.current > 0.5) {
+      lastMirrorCheck.current = t;
+      const [mx, my, mz] = mirrorPosition;
+      const dx = cubePos.current[0] - mx;
+      const dy = cubePos.current[1] - my;
+      const dz = cubePos.current[2] - mz;
+      const distToMirror = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+      // Progressive recognition phases based on proximity
+      if (distToMirror < 3.5 && mirrorRecognitionPhase === "none") {
+        // Phase 1: Noticing reflection
+        setMirrorRecognitionPhase("noticing");
+        mirrorRecognitionStart.current = t;
+        setThought("¿Qué es eso?");
+      } else if (
+        distToMirror < 2.5 &&
+        mirrorRecognitionPhase === "noticing" &&
+        t - mirrorRecognitionStart.current > 2
+      ) {
+        // Phase 2: Getting curious
+        setMirrorRecognitionPhase("curious");
+        mirrorRecognitionStart.current = t;
+        const curiousThoughts = [
+          "Hmm... se mueve como yo",
+          "¿Me está imitando?",
+          "Ese cubo parece familiar...",
+        ];
+        setThought(
+          curiousThoughts[Math.floor(Math.random() * curiousThoughts.length)]
+        );
+      } else if (
+        distToMirror < 1.8 &&
+        mirrorRecognitionPhase === "curious" &&
+        t - mirrorRecognitionStart.current > 3 &&
+        !hasRecognizedSelf.current
+      ) {
+        // Phase 3: Self-recognition moment!
+        setMirrorRecognitionPhase("recognized");
+        mirrorRecognitionStart.current = t;
+        hasRecognizedSelf.current = true;
+
+        // Personality-based reactions
+        const recognitionThoughts: Record<string, string> = {
+          extrovert: "¡Soy yo! ¡Me veo genial!",
+          calm: "Ah... ese soy yo. Interesante perspectiva.",
+          curious: "¡Fascinante! Ese es mi reflejo. ¿Qué revela de mí?",
+          chaotic: "¿¿ESE SOY YO?! ¡Increíble!",
+          neutral: "Reconocimiento: ese es mi aspecto físico.",
+        };
+        setThought(
+          recognitionThoughts[currentPersonality] ||
+            "¡Ese soy yo! Cogito ergo sum."
+        );
+
+        // Knowledge gain: self-awareness
+        knowledge.current.self_awareness += 1;
+        emotionsExperienced.current.add("wonder");
+        traitsAcquired.current.add("self_conscious");
+
+        // Pulse effect on recognition
+        pulseStrength.current = Math.max(pulseStrength.current, 1.2);
+
+        // Update community with self-awareness achievement
+        updateCube(id, {
+          position: cubePos.current,
+          personality: personalityForRegistry,
+          readingExperiences: {
+            originalPersonality: originalPersonality.current,
+            booksRead: booksRead.current,
+            emotionsExperienced: Array.from(emotionsExperienced.current),
+            traitsAcquired: Array.from(traitsAcquired.current),
+            conceptsLearned: Array.from(conceptsLearned.current),
+          },
+          capabilities: capabilities.current,
+        });
+      } else if (
+        distToMirror < 1.5 &&
+        mirrorRecognitionPhase === "recognized" &&
+        t - mirrorRecognitionStart.current > 4
+      ) {
+        // Phase 4: Philosophical reflection
+        setMirrorRecognitionPhase("reflecting");
+        mirrorRecognitionStart.current = t;
+        const philosophicalThoughts: Record<string, string> = {
+          extrovert: "Me pregunto qué piensan los demás de mí...",
+          calm: "El reflejo muestra el exterior, no el interior.",
+          curious:
+            "Si puedo verme, ¿qué más puedo descubrir sobre mí mismo?",
+          chaotic: "¿Soy realmente así? ¡Necesito cambiar!",
+          neutral: "Observación: la auto-percepción afecta la identidad.",
+        };
+        setThought(
+          philosophicalThoughts[currentPersonality] ||
+            "¿Quién soy realmente más allá de mi reflejo?"
+        );
+      } else if (distToMirror > 4 && mirrorRecognitionPhase !== "none") {
+        // Left mirror area - reset to allow re-observation
+        if (mirrorRecognitionPhase !== "recognized") {
+          setMirrorRecognitionPhase("none");
+        }
+      }
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // ATTENTION & NAVIGATION SYSTEM (only in auto mode)
     // ────────────────────────────────────────────────────────────────
     if (auto) {
@@ -425,11 +547,82 @@ export default function Cube({
       if (!isNavigating.current && t - lastScanTime.current > scanInterval) {
         lastScanTime.current = t;
 
+        // Build complete exploration targets list
+        const explorationTargets: Array<{
+          object: any;
+          type: "book" | "cube" | "zone" | "ambient";
+          domain?: string;
+          difficulty?: "basic" | "intermediate" | "advanced";
+        }> = [];
+
+        // Add book targets
+        explorationTargets.push(...bookTargets);
+
+        // Add other cubes as social targets
+        allCubeIds.forEach((cubeId) => {
+          if (cubeId !== id) {
+            const otherCube = getCube(cubeId);
+            if (otherCube && otherCube.position) {
+              explorationTargets.push({
+                object: {
+                  position: {
+                    x: otherCube.position[0],
+                    y: otherCube.position[1],
+                    z: otherCube.position[2],
+                  },
+                },
+                type: "cube",
+              });
+            }
+          }
+        });
+
+        // Add mirror as exploration target
+        if (mirrorPosition) {
+          explorationTargets.push({
+            object: {
+              position: {
+                x: mirrorPosition[0],
+                y: mirrorPosition[1],
+                z: mirrorPosition[2],
+              },
+            },
+            type: "zone",
+          });
+        }
+
+        // Add ambient zones
+        ambientZones.forEach((zone) => {
+          explorationTargets.push({
+            object: {
+              position: {
+                x: zone.position[0],
+                y: zone.position[1],
+                z: zone.position[2],
+              },
+            },
+            type: "ambient",
+          });
+        });
+
+        // Add random exploration points (curiosity-driven wandering)
+        if (Math.random() < 0.3) {
+          // 30% chance to add a random point
+          const randomX = (Math.random() - 0.5) * 80; // Within sandbox bounds
+          const randomZ = (Math.random() - 0.5) * 80;
+          explorationTargets.push({
+            object: {
+              position: { x: randomX, y: 0.5, z: randomZ },
+            },
+            type: "zone",
+          });
+        }
+
         const target = scanForTargets(
           cubePos.current,
           personality,
           att.targetHistory,
-          bookTargets
+          explorationTargets
         );
 
         if (target && !att.currentTarget) {
@@ -449,6 +642,23 @@ export default function Cube({
           phase.current = "navigating";
           isNavigating.current = true;
           phaseStart.current = t;
+
+          // Set thought based on target type
+          if (att.currentTarget.type === "cube") {
+            const socialThoughts = [
+              "¿Qué hay por allá?",
+              "Voy a ver a ese cubo",
+              "¡Hola! Voy hacia ti",
+              "Me pregunto qué hace...",
+            ];
+            setThought(
+              socialThoughts[Math.floor(Math.random() * socialThoughts.length)]
+            );
+          } else if (att.currentTarget.type === "zone") {
+            setThought("Hmm, esa zona parece interesante");
+          } else if (att.currentTarget.type === "ambient") {
+            setThought("¿Qué habrá allí?");
+          }
         } else {
           // Can't navigate yet — observe briefly and try to learn
           setThought("Quiero moverme... ¿alguien me enseña?");
@@ -991,8 +1201,29 @@ export default function Cube({
         }
       }
     }
-    // Face the camera gently when selected and idle-ish
+    // Face mirror during recognition phases (higher priority than camera)
     if (
+      mirrorPosition &&
+      (mirrorRecognitionPhase === "curious" ||
+        mirrorRecognitionPhase === "recognized" ||
+        mirrorRecognitionPhase === "reflecting") &&
+      ref.current
+    ) {
+      const [mx, , mz] = mirrorPosition;
+      const dx = mx - cubePos.current[0];
+      const dz = mz - cubePos.current[2];
+      const desiredYaw = Math.atan2(dx, dz);
+
+      tmpEuler.current.set(0, 0, 0);
+      tmpQ.current.setFromEuler(tmpEuler.current);
+      tmpEuler.current.y = desiredYaw;
+      const desired = new Quaternion().setFromEuler(tmpEuler.current);
+
+      const qNow = ref.current.quaternion;
+      qNow.slerp(desired, Math.min(1, 5 * delta)); // Faster turn toward mirror
+    }
+    // Face the camera gently when selected and idle-ish
+    else if (
       selected &&
       !isNavigating.current &&
       (phase.current === "idle" ||

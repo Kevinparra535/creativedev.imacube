@@ -25,7 +25,8 @@ export type KnowledgeDomain =
   | "literature"
   | "art"
   | "music"
-  | "nature";
+  | "nature"
+  | "self_awareness";
 
 export interface KnowledgeState {
   science: number;
@@ -37,6 +38,7 @@ export interface KnowledgeState {
   art: number;
   music: number;
   nature: number;
+  self_awareness: number;
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -130,6 +132,7 @@ export function createKnowledgeState(): KnowledgeState {
     art: 0,
     music: 0,
     nature: 0,
+    self_awareness: 0,
   };
 }
 

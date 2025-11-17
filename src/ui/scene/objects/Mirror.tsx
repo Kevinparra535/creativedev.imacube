@@ -10,7 +10,7 @@ const Mirror = ({ rotation, position }: Props) => {
     <mesh rotation={rotation} position={position}>
       <planeGeometry args={[10, 10]} />
       <MeshReflectorMaterial
-        blur={[400, 100]}
+        blur={[0, 0]}
         resolution={1024}
         mixBlur={0}
         mixStrength={0.5}
