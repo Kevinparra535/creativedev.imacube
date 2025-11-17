@@ -31,14 +31,15 @@ export function BubbleEyes({
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
 
-    // Lerp toward incoming targets
-    const ek = 12;
+    // Lerp toward incoming targets with smooth damping
+    const scaleK = 8; // Eye scale lerp speed
+    const lookK = 5;  // Look direction lerp speed (slower = smoother)
     curEyeScale.current[0] +=
-      (eyeScale[0] - curEyeScale.current[0]) * Math.min(1, ek * delta);
+      (eyeScale[0] - curEyeScale.current[0]) * Math.min(1, scaleK * delta);
     curEyeScale.current[1] +=
-      (eyeScale[1] - curEyeScale.current[1]) * Math.min(1, ek * delta);
-    curLook.current[0] += (look[0] - curLook.current[0]) * Math.min(1, ek * delta);
-    curLook.current[1] += (look[1] - curLook.current[1]) * Math.min(1, ek * delta);
+      (eyeScale[1] - curEyeScale.current[1]) * Math.min(1, scaleK * delta);
+    curLook.current[0] += (look[0] - curLook.current[0]) * Math.min(1, lookK * delta);
+    curLook.current[1] += (look[1] - curLook.current[1]) * Math.min(1, lookK * delta);
 
     // Blink schedule
     if (t >= nextBlinkAt.current) {
@@ -62,14 +63,12 @@ export function BubbleEyes({
     // Radii
     const whiteR = 0.14;
     const irisR = 0.08;
-    const pupilR = 0.045;
-    const margin = 0.01;
-    const maxIrisOffset = Math.max(whiteR - irisR - margin, 0.0); // 0.14 - 0.08 - 0.01 = 0.05
-    const maxPupilOffset = Math.max(irisR - pupilR - 0.008, 0.0); // inside iris ring
+    const margin = 0.015; // More generous margin
+    const maxIrisOffset = Math.max(whiteR - irisR - margin, 0.0); // ~0.045
 
-    // Desired iris center follows look scaled down
-    let ix = ox * 0.6;
-    let iy = oy * 0.6;
+    // Iris center follows look with natural scaling
+    let ix = ox * 0.8; // Less dampening for more responsive look
+    let iy = oy * 0.8;
     const ilen = Math.hypot(ix, iy) || 1;
     if (ilen > maxIrisOffset && ilen > 0) {
       const k = maxIrisOffset / ilen;
@@ -77,26 +76,20 @@ export function BubbleEyes({
       iy *= k;
     }
 
-    // Pupil stays centered on iris but clamped within iris interior
-    let px = ix;
-    let py = iy;
-    const plen = Math.hypot(px, py) || 1;
-    if (plen > maxPupilOffset && plen > 0) {
-      const k = maxPupilOffset / plen;
-      px *= k;
-      py *= k;
-    }
+    // Pupil stays centered on iris (moves with it as a unit)
+    const px = ix;
+    const py = iy;
 
     if (leftIrisRef.current) leftIrisRef.current.position.set(ix, iy, 0.003);
     if (rightIrisRef.current) rightIrisRef.current.position.set(ix, iy, 0.003);
     if (leftPupilRef.current) leftPupilRef.current.position.set(px, py, 0.005);
     if (rightPupilRef.current) rightPupilRef.current.position.set(px, py, 0.005);
 
-    // Spark highlight: keep near top-right of iris and inside white
-    let hx = ix + 0.02;
-    let hy = iy + 0.03;
+    // Spark highlight: offset from iris center, clamped within white
+    let hx = ix + 0.03;
+    let hy = iy + 0.04;
     const sLen = Math.hypot(hx, hy) || 1;
-    const maxSpark = Math.max(whiteR - 0.02, 0.0);
+    const maxSpark = Math.max(whiteR - 0.015, 0.0);
     if (sLen > maxSpark && sLen > 0) {
       const k = maxSpark / sLen;
       hx *= k;

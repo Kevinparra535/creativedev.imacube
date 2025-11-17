@@ -22,7 +22,8 @@ npm run lint     # Run ESLint on entire codebase
 ## Features
 
 - Sandbox box: 6 `Plane` colliders forming a closed room; cubes inside.
-- Bouncy physics: tuned restitution/friction for a “gel-like” feel.
+- Bouncy physics: tuned restitution/friction for a "gel-like" feel.
+- Books rain: randomly spawned physical books (boxes) with high restitution for dynamic collisions.
 - Selection & hop test: click to select, press `Space` to hop.
 - Auto-hop: cubes occasionally hop on their own in auto mode.
 - Squash & stretch: pre-jump, in-air, and landing scale phases.
@@ -36,8 +37,9 @@ npm run lint     # Run ESLint on entire codebase
 - `src/ui/scene/R3FCanvas.tsx` — Scene setup, physics world, selection/outline.
 - `src/ui/scene/components/Cube.tsx` — Physics cube, hop phases, self-righting, eyes, bubble, personality visuals.
 - `src/ui/scene/components/Plane.tsx` — Static planes for floor/walls/ceiling.
-- `src/ui/scene/ThoughtBubble.css` — Cartoon bubble styles.
+- `src/ui/scene/objects/Books.tsx` — Randomly spawned physics books with collision/bounce dynamics.
 - `src/ui/scene/objects/{BubbleEyes,DotEyes}.tsx` — Eye styles with blink and gaze.
+- `src/ui/scene/ThoughtBubble.css` — Cartoon bubble styles.
 - `src/ui/scene/visual/visualState.ts` — Map `personality + mood(thought)` to material/anim targets.
 
 ## Visual System

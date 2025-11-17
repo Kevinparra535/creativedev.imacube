@@ -29,11 +29,12 @@ export function DotEyes({
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
 
-    const ek = 12;
-    curLook.current[0] += (look[0] - curLook.current[0]) * Math.min(1, ek * delta);
-    curLook.current[1] += (look[1] - curLook.current[1]) * Math.min(1, ek * delta);
-    curScale.current[0] += (eyeScale[0] - curScale.current[0]) * Math.min(1, ek * delta);
-    curScale.current[1] += (eyeScale[1] - curScale.current[1]) * Math.min(1, ek * delta);
+    const scaleK = 8; // Eye scale lerp speed
+    const lookK = 5;  // Look direction lerp speed (slower = smoother)
+    curLook.current[0] += (look[0] - curLook.current[0]) * Math.min(1, lookK * delta);
+    curLook.current[1] += (look[1] - curLook.current[1]) * Math.min(1, lookK * delta);
+    curScale.current[0] += (eyeScale[0] - curScale.current[0]) * Math.min(1, scaleK * delta);
+    curScale.current[1] += (eyeScale[1] - curScale.current[1]) * Math.min(1, scaleK * delta);
 
     // Blink schedule (subtle for dot eyes)
     if (t >= nextBlinkAt.current) {
@@ -56,8 +57,8 @@ export function DotEyes({
     let oy = curLook.current[1];
     const dotR = 0.055;
     const whiteR = 0.14; // implied orbit similar to BubbleEyes
-    const margin = 0.012;
-    const maxDotOffset = Math.max(whiteR - dotR - margin, 0.0); // ~0.073
+    const margin = 0.015;
+    const maxDotOffset = Math.max(whiteR - dotR - margin, 0.0); // ~0.07
     const len = Math.hypot(ox, oy) || 1;
     if (len > maxDotOffset && len > 0) {
       const k = maxDotOffset / len;
@@ -67,8 +68,9 @@ export function DotEyes({
     if (leftDotRef.current) leftDotRef.current.position.set(ox, oy, 0.005);
     if (rightDotRef.current) rightDotRef.current.position.set(ox, oy, 0.005);
 
-    const sparkX = ox + 0.012;
-    const sparkY = oy + 0.016;
+    // Sparkle moves with the dot as a unit (offset from dot center)
+    const sparkX = ox + 0.018;
+    const sparkY = oy + 0.022;
     if (leftSparkRef.current) leftSparkRef.current.position.set(sparkX, sparkY, 0.007);
     if (rightSparkRef.current) rightSparkRef.current.position.set(sparkX, sparkY, 0.007);
   });

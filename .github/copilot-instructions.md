@@ -59,11 +59,12 @@ import publicAsset from '/public-asset.svg'  // Public folder assets use /
 - **Scene file**: `src/ui/scene/R3FCanvas.tsx`
 - **Components**: `src/ui/scene/components/Cube.tsx`, `src/ui/scene/components/Plane.tsx`
 - **Styles**: `src/ui/scene/ThoughtBubble.css` (desde componentes: `import "../ThoughtBubble.css"`)
-- **Objects**: `src/ui/scene/objects/{BubbleEyes,DotEyes}.tsx` (ojos intercambiables por props)
+- **Objects**: `src/ui/scene/objects/{BubbleEyes,DotEyes}.tsx` (ojos intercambiables por props), `src/ui/scene/objects/Books.tsx` (libros físicos aleatorios)
 - **Visual**: `src/ui/scene/visual/visualState.ts` (mapea personalidad/estado → material y micro-animaciones)
 - **Sandbox geometry**: 6 `Plane` bodies forming a closed cube; `Cube` bodies inside.
 - **Physics config**: `Physics` node with `gravity`, `defaultContactMaterial` (tuned `restitution`, `friction`, `contactEquationRelaxation` for springy collisions).
-- **Materials**: Dynamic restitution/friction on cubes/planes to achieve bouncy, “gel-like” feel.
+- **Materials**: Dynamic restitution/friction on cubes/planes to achieve bouncy, "gel-like" feel.
+- **Books**: Individual physics bodies (`useBox`) spawned randomly within sandbox bounds; uses `useState` initializer to generate random positions/rotations/colors once at mount (React 19 purity compliance).
 - **Postprocessing**: `EffectComposer` + `Outline` for hover/selection highlight.
 
 ### Interaction & Animation Pattern
@@ -126,7 +127,14 @@ Uses flat config with these plugins:
 	- Visual mapping: `computeVisualTargets` aplicado al material (`color/emissive/roughness/metalness`) y micro-animaciones (respiración/jitter)
 
 - File: `src/ui/scene/components/Plane.tsx`
-	- Colisionadores estáticos con material (restitución/fricción) ajustado para rebote “gel-like”
+	- Colisionadores estáticos con material (restitución/fricción) ajustado para rebote "gel-like"
+
+- File: `src/ui/scene/objects/Books.tsx`
+	- Individual `Book` components with `useBox` physics: `mass: 1`, `restitution: 0.9`, `friction: 0.1`, damping for stability
+	- `Books` wrapper uses `useState(() => { ... })` initializer to generate random spawn data (position, rotation, color) once at mount
+	- Complies with React 19 purity rules by avoiding `Math.random()` in render/useMemo; uses state initializer function instead
+	- Spawns within sandbox bounds (configurable `sandboxSize`, `minY`, `maxY`)
+	- Each book casts/receives shadows for realistic lighting
 
 - Objects: `src/ui/scene/objects/{BubbleEyes,DotEyes}.tsx`
 	- Ojos con parpadeo y mirada lerpeada; reciben `look` y `eyeScale` desde `Cube`
@@ -134,4 +142,4 @@ Uses flat config with these plugins:
 - Visual: `src/ui/scene/visual/visualState.ts`
 	- `computeVisualTargets(thought, personality, selected, hovered)` → objetivos visuales coherentes con estado
 
-If adding new organisms or motions, reuse the pattern: drive phase/target via refs, schedule impulses, lerp visuals in `useFrame`, subscribe to Cannon in `useEffect`.
+If adding new organisms or motions, reuse the pattern: drive phase/target via refs, schedule impulses, lerp visuals in `useFrame`, subscribe to Cannon in `useEffect`. For random generation in React 19, use `useState(() => ...)` initializer to satisfy purity constraints.

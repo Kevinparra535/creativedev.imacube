@@ -373,8 +373,9 @@ export default function Cube({
             const local = obj.worldToLocal(tmpV3.current.clone());
             const hx = Math.max(0.5 * tmpScale.current.x, 0.0001);
             const hy = Math.max(0.5 * tmpScale.current.y, 0.0001);
-            const lx = MathUtils.clamp(local.x / hx, -1, 1) * 0.12;
-            const ly = MathUtils.clamp(local.y / hy, -1, 1) * 0.12;
+            // Normalize and apply smooth scaling for natural look range
+            const lx = MathUtils.clamp(local.x / hx, -1, 1) * 0.08;
+            const ly = MathUtils.clamp(local.y / hy, -1, 1) * 0.08;
             hoverLook.current = [lx, ly];
             setHoverLookState([lx, ly]);
           }
@@ -400,9 +401,9 @@ export default function Cube({
             eyeTargetLook[0] + (hovered ? hoverLookState[0] : 0),
             eyeTargetLook[1] + (hovered ? hoverLookState[1] : 0),
           ];
-          // Clamp combined look to a safe cute range
-          finalLook[0] = MathUtils.clamp(finalLook[0], -0.12, 0.12);
-          finalLook[1] = MathUtils.clamp(finalLook[1], -0.12, 0.12);
+          // Clamp combined look to a safe cute range (more generous)
+          finalLook[0] = MathUtils.clamp(finalLook[0], -0.1, 0.1);
+          finalLook[1] = MathUtils.clamp(finalLook[1], -0.1, 0.1);
           return eyeStyle === "bubble" ? (
             <BubbleEyes
               position={[0, 0.12, 0.51]}
