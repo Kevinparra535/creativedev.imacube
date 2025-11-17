@@ -29,6 +29,7 @@ npm run lint     # Run ESLint on entire codebase
 - **Bouncy physics**: tuned restitution/friction for a "gel-like" feel.
 - **Books rain**: randomly spawned physical books (boxes) with high restitution for dynamic collisions.
 - **Selection & hop test**: click to select, press `Space` to hop.
+- **Camera follow system**: smooth camera tracking with toggle lock (Space), preserves user rotation angle.
 - **Auto-hop**: cubes occasionally hop on their own in auto mode.
 - **Squash & stretch**: pre-jump, in-air, and landing scale phases.
 - **Self-righting**: detects tilt and re-orients upright (preserving yaw) with a gentle correction hop.
@@ -39,6 +40,10 @@ npm run lint     # Run ESLint on entire codebase
 - **Swappable eyes**: `BubbleEyes` (whites+iris+pupil+spark) or `DotEyes` (minimal) via prop.
 - **Animated eyebrows**: 8 mood expressions (happy, sad, angry, curious, prep, air, land, neutral) with smooth transitions.
 - **Personality visuals**: color/material/breath/jitter derived from personality + mood.
+- **Confusion wobble**: sin-based X/Z scale oscillation when detecting confusion keywords.
+- **Face camera**: selected cubes smoothly rotate to face camera when idle.
+- **Point light**: follows selected cube, pulses with learning achievements.
+- **Chaotic flicker**: rapid emissive oscillation for chaotic personality.
 - **Mood system**: Calculates emotional state from thought content and personality baseline:
   - Physical phases: `prep` (preparing jump), `land` (impact)
   - Emotional states: `happy`, `sad`, `angry`, `curious`
@@ -47,23 +52,38 @@ npm run lint     # Run ESLint on entire codebase
 ### UI Components
 
 - **Sidebar (CubeList)**: Right panel showing all cubes with their properties (personality, eye style, position, mode).
+  - **Camera lock indicator**: Shows current lock state (🔒/🔓) and toggle hint when cube selected.
 - **Footer (CubeFooter)**: Bottom ReactFlow graph visualizing selected cube's:
   - **Emociones** (emotions) - Dynamic based on personality
   - **Personalidad** (personality traits) - Character attributes
-  - **Conocimientos** (knowledge/skills) - Abilities and capabilities
+  - **Conocimientos** (knowledge domains) - Philosophy, theology, science, arts, etc.
+  - **Conceptos aprendidos** (learned concepts) - Last 6 concepts from reading (e.g., "Dios", "Fe", "Pecado")
   - Interactive nodes with animated edges, zoom/pan controls, and minimap
+
+### Learning & Knowledge System
+
+- **Book reading**: Cubes can navigate to and read physical books in the sandbox.
+- **Knowledge domains**: Philosophy, theology, science, arts, history, literature, mathematics, psychology.
+- **Progressive learning**: Concepts are tracked incrementally during reading sessions.
+- **Reading experiences**: Stored with book title, concepts learned, emotions felt, duration.
+- **Community registry**: Centralized state with pub-sub pattern, RAF throttling, multi-property change detection.
+- **Visual feedback**: Point light pulses on book completion, emissive boost for achievements.
 
 ## Key Files
 
 ### 3D Scene
 
-- `src/ui/scene/R3FCanvas.tsx` — Scene setup, physics world, selection/outline, cube orchestration.
-- `src/ui/scene/components/Cube.tsx` — Physics cube, hop phases, self-righting, eyes, eyebrows, bubble, personality visuals.
+- `src/ui/scene/R3FCanvas.tsx` — Scene setup, physics world, selection/outline, cube orchestration, camera follow system.
+- `src/ui/scene/components/Cube.tsx` — Physics cube, hop phases, self-righting, eyes, eyebrows, bubble, personality visuals, confusion wobble, face camera, point light.
 - `src/ui/scene/components/Plane.tsx` — Static planes for floor/walls/ceiling.
 - `src/ui/scene/objects/Books.tsx` — Randomly spawned physics books with collision/bounce dynamics.
 - `src/ui/scene/objects/{BubbleEyes,DotEyes}.tsx` — Eye styles with blink, gaze tracking, and mood-based eyebrows.
 - `src/ui/scene/cubesConfig.ts` — Centralized cube configuration array.
 - `src/ui/scene/visual/visualState.ts` — Map `personality + mood(thought)` to material/anim targets.
+- `src/ui/scene/systems/Community.ts` — Global registry with pub-sub, RAF throttling, change detection.
+- `src/ui/scene/systems/BookReadingSystem.ts` — Reading mechanics, knowledge mapping, concept tracking.
+- `src/ui/scene/guidelines/instrucciones.ts` — Knowledge domains, personality directives, learning effects.
+- `src/ui/scene/data/booksLibrary.ts` — Book content with concepts, domains, psychological effects.
 
 ### UI Components & Styles
 
@@ -126,8 +146,10 @@ Eyebrow mappings:
 
 - **Hover** to highlight a cube
 - **Click** a cube to select (sidebar and footer update)
-- **Space** to make selected cube hop (manual mode)
+- **Space** when cube selected: Toggle camera lock (follow/free)
+- **Space** when no selection: Make cubes hop (manual mode)
 - **Click empty space** to clear selection
+- **Mouse drag**: Rotate camera (preserves angle when following)
 - **Footer**: Drag nodes, zoom/pan, use controls
 
 ## ReactFlow Knowledge Graph

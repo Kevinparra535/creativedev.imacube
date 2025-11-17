@@ -1,8 +1,13 @@
 import { MeshReflectorMaterial } from "@react-three/drei";
 
-const Mirror = () => {
+type Props = {
+  rotation?: [number, number, number];
+  position?: [number, number, number];
+};
+
+const Mirror = ({ rotation, position }: Props) => {
   return (
-    <mesh rotation={[0, 0, 0]}>
+    <mesh rotation={rotation} position={position}>
       <planeGeometry args={[10, 10]} />
       <MeshReflectorMaterial
         blur={[400, 100]}

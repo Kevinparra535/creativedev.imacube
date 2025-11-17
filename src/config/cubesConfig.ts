@@ -1,4 +1,4 @@
-import type { CubeData } from "../components/CubeList";
+import type { CubeData } from "../ui/components/CubeList";
 
 export const CUBES_CONFIG: CubeData[] = [
   { id: "c1", position: [0, 8, 0], auto: true, personality: "calm", eyeStyle: "bubble" },

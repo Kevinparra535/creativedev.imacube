@@ -27,9 +27,20 @@ import {
   startNavigation,
   stopNavigation,
 } from "../systems/NavigationSystem";
-import { registerCube, unregisterCube, updateCube, getNeighbors } from "../systems/Community";
-import { tryLearnFromNeighbors, spontaneousDiscovery } from "../systems/SocialLearningSystem";
-import { applyBookEffects, createKnowledgeState } from "../guidelines/instrucciones";
+import {
+  registerCube,
+  unregisterCube,
+  updateCube,
+  getNeighbors,
+} from "../systems/Community";
+import {
+  tryLearnFromNeighbors,
+  spontaneousDiscovery,
+} from "../systems/SocialLearningSystem";
+import {
+  applyBookEffects,
+  createKnowledgeState,
+} from "../guidelines/instrucciones";
 import type { KnowledgeDomain, BookSpec } from "../guidelines/instrucciones";
 import {
   decideTORead,
@@ -58,7 +69,12 @@ export interface CubeProps {
   learningPulseSignal?: number; // increment to trigger a learning pulse
   onSelect?: (id: string) => void;
   position?: Triplet;
-  bookTargets?: Array<{ object: Mesh; type: "book"; domain?: string; difficulty?: "basic" | "intermediate" | "advanced" }>; // Available books for attention system
+  bookTargets?: Array<{
+    object: Mesh;
+    type: "book";
+    domain?: string;
+    difficulty?: "basic" | "intermediate" | "advanced";
+  }>; // Available books for attention system
   [key: string]: unknown;
 }
 
@@ -85,7 +101,16 @@ export default function Cube({
   const [hovered, setHovered] = useState(false);
   const [thought, setThought] = useState<string>("...");
 
-  type CubePhase = "idle" | "squash" | "air" | "land" | "settle" | "scanning" | "interested" | "navigating" | "observing";
+  type CubePhase =
+    | "idle"
+    | "squash"
+    | "air"
+    | "land"
+    | "settle"
+    | "scanning"
+    | "interested"
+    | "navigating"
+    | "observing";
   const phase = useRef<CubePhase>("idle");
   const phaseStart = useRef(0);
   const nextHopAt = useRef(0);
@@ -107,12 +132,17 @@ export default function Cube({
   const isNavigating = useRef(false); // Track if actively navigating
 
   const learningProgress = useRef({ navigation: 0, selfRighting: 0 });
-  const observedBookMeta = useRef<{ domain?: string; difficulty?: "basic" | "intermediate" | "advanced" } | null>(null);
+  const observedBookMeta = useRef<{
+    domain?: string;
+    difficulty?: "basic" | "intermediate" | "advanced";
+  } | null>(null);
   const observeTick = useRef(0);
   const tiltExperienceTick = useRef(0);
   const readingState = useRef<ReadingState>(createReadingState());
   const readingTick = useRef(0);
-  const [currentPersonality, setCurrentPersonality] = useState(personality || "neutral");
+  const [currentPersonality, setCurrentPersonality] = useState(
+    personality || "neutral"
+  );
   const originalPersonality = useRef(personality || "neutral");
   const emotionsExperienced = useRef<Set<string>>(new Set());
   const traitsAcquired = useRef<Set<string>>(new Set());
@@ -132,20 +162,33 @@ export default function Cube({
   const tmpScale = useRef(new Vector3());
 
   // Navigation jump animation overlay (keeps main phase as 'navigating')
-  const navJumpPhase = useRef<"idle" | "squash" | "air" | "land" | "settle">("idle");
+  const navJumpPhase = useRef<"idle" | "squash" | "air" | "land" | "settle">(
+    "idle"
+  );
   const navJumpStart = useRef(0);
 
   // Social learning & capabilities
-  const [socialTrait] = useState<"kind" | "selfish">(() => (Math.random() < 0.6 ? "kind" : "selfish"));
+  const [socialTrait] = useState<"kind" | "selfish">(() =>
+    Math.random() < 0.6 ? "kind" : "selfish"
+  );
   const capabilities = useRef({ selfRighting: false, navigation: false });
   const lastLearnCheck = useRef(0);
   const knowledge = useRef(createKnowledgeState());
-  const personalityForRegistry: ListPersonality = personality as ListPersonality;
+  const personalityForRegistry: ListPersonality =
+    personality as ListPersonality;
 
   // Eyes targets derived from thought and current personality (may have changed from reading)
   const { eyeTargetScale, eyeTargetLook, mood } = useMemo(() => {
     const txt = (thought || "").toLowerCase();
-    let mood: "neutral" | "prep" | "air" | "land" | "curious" | "happy" | "angry" | "sad" = "neutral";
+    let mood:
+      | "neutral"
+      | "prep"
+      | "air"
+      | "land"
+      | "curious"
+      | "happy"
+      | "angry"
+      | "sad" = "neutral";
 
     // Priority 1: Physical jump phases (temporary emotional states)
     if (txt.includes("preparando")) mood = "prep";
@@ -168,8 +211,18 @@ export default function Cube({
       mood = "happy";
     // Priority 3: Emotional keywords
     else if (txt.includes("triste") || txt.includes("😢")) mood = "sad";
-    else if (txt.includes("enojado") || txt.includes("grr") || txt.includes("frustrado")) mood = "angry";
-    else if (txt.includes("hmm") || txt.includes("zig") || txt.includes("bonito")) mood = "curious";
+    else if (
+      txt.includes("enojado") ||
+      txt.includes("grr") ||
+      txt.includes("frustrado")
+    )
+      mood = "angry";
+    else if (
+      txt.includes("hmm") ||
+      txt.includes("zig") ||
+      txt.includes("bonito")
+    )
+      mood = "curious";
     // Priority 4: Personality baseline
     else {
       if (currentPersonality === "extrovert") mood = "happy";
@@ -179,19 +232,47 @@ export default function Cube({
 
     switch (mood) {
       case "prep":
-        return { eyeTargetScale: [1.2, 0.65] as [number, number], eyeTargetLook: [0, -0.04] as [number, number], mood };
+        return {
+          eyeTargetScale: [1.2, 0.65] as [number, number],
+          eyeTargetLook: [0, -0.04] as [number, number],
+          mood,
+        };
       case "land":
-        return { eyeTargetScale: [1.4, 0.5] as [number, number], eyeTargetLook: [0.02, -0.06] as [number, number], mood };
+        return {
+          eyeTargetScale: [1.4, 0.5] as [number, number],
+          eyeTargetLook: [0.02, -0.06] as [number, number],
+          mood,
+        };
       case "happy":
-        return { eyeTargetScale: [1.15, 1.15] as [number, number], eyeTargetLook: [0, 0.05] as [number, number], mood };
+        return {
+          eyeTargetScale: [1.15, 1.15] as [number, number],
+          eyeTargetLook: [0, 0.05] as [number, number],
+          mood,
+        };
       case "curious":
-        return { eyeTargetScale: [1.05, 1] as [number, number], eyeTargetLook: [0.08, 0] as [number, number], mood };
+        return {
+          eyeTargetScale: [1.05, 1] as [number, number],
+          eyeTargetLook: [0.08, 0] as [number, number],
+          mood,
+        };
       case "angry":
-        return { eyeTargetScale: [1.1, 0.85] as [number, number], eyeTargetLook: [0, -0.02] as [number, number], mood };
+        return {
+          eyeTargetScale: [1.1, 0.85] as [number, number],
+          eyeTargetLook: [0, -0.02] as [number, number],
+          mood,
+        };
       case "sad":
-        return { eyeTargetScale: [0.95, 0.9] as [number, number], eyeTargetLook: [0, -0.05] as [number, number], mood };
+        return {
+          eyeTargetScale: [0.95, 0.9] as [number, number],
+          eyeTargetLook: [0, -0.05] as [number, number],
+          mood,
+        };
       default:
-        return { eyeTargetScale: [1, 1] as [number, number], eyeTargetLook: [0, 0] as [number, number], mood };
+        return {
+          eyeTargetScale: [1, 1] as [number, number],
+          eyeTargetLook: [0, 0] as [number, number],
+          mood,
+        };
     }
   }, [thought, currentPersonality]);
 
@@ -202,7 +283,9 @@ export default function Cube({
 
   // Hover eye-look offset computed from pointer
   const hoverLook = useRef<[number, number]>([0, 0]);
-  const [hoverLookState, setHoverLookState] = useState<[number, number]>([0, 0]);
+  const [hoverLookState, setHoverLookState] = useState<[number, number]>([
+    0, 0,
+  ]);
 
   // Track position and velocity
   useEffect(() => {
@@ -262,9 +345,14 @@ export default function Cube({
     // COMMUNITY UPDATE & SOCIAL LEARNING TICK
     // ────────────────────────────────────────────────────────────────
     // Keep public state updated (include learning progress, current personality, and reading experiences)
-    updateCube(id, { 
+    updateCube(id, {
       position: cubePos.current,
-      personality: currentPersonality as "calm" | "curious" | "extrovert" | "chaotic" | "neutral",
+      personality: currentPersonality as
+        | "calm"
+        | "curious"
+        | "extrovert"
+        | "chaotic"
+        | "neutral",
       capabilities: capabilities.current,
       learningProgress: { ...learningProgress.current },
       knowledge: { ...knowledge.current },
@@ -291,7 +379,11 @@ export default function Cube({
           if (spontaneousDiscovery(personalityForRegistry, need)) {
             (capabilities.current as typeof capabilities.current)[need] = true;
             discovered = true;
-            setThought(need === "navigation" ? "¡Creo que aprendí a moverme!" : "¡Puedo enderezarme solo!");
+            setThought(
+              need === "navigation"
+                ? "¡Creo que aprendí a moverme!"
+                : "¡Puedo enderezarme solo!"
+            );
             pulseStrength.current = 1;
           }
         }
@@ -332,7 +424,7 @@ export default function Cube({
       // Allow scanning whenever not actively navigating to find goals sooner
       if (!isNavigating.current && t - lastScanTime.current > scanInterval) {
         lastScanTime.current = t;
-        
+
         const target = scanForTargets(
           cubePos.current,
           personality,
@@ -369,27 +461,44 @@ export default function Cube({
       // NAVIGATING: Moving toward target
       if (phase.current === "navigating" && nav.targetPosition) {
         // Check if arrived
-        if (hasArrivedAt(cubePos.current, nav.targetPosition, cubeVel.current)) {
+        if (
+          hasArrivedAt(cubePos.current, nav.targetPosition, cubeVel.current)
+        ) {
           // Arrived! Switch to observing
           phase.current = "observing";
-                    isNavigating.current = false;
+          isNavigating.current = false;
           phaseStart.current = t;
           att.interestTimer = 0;
-          
+
           // Record visit in memory
           if (att.currentTarget) {
-            att.targetHistory = recordVisit(att.targetHistory, att.currentTarget);
+            att.targetHistory = recordVisit(
+              att.targetHistory,
+              att.currentTarget
+            );
           }
 
           // Begin observing book metadata for vision-based learning
           if (att.currentTarget && att.currentTarget.type === "book") {
-            observedBookMeta.current = { domain: att.currentTarget.domain, difficulty: att.currentTarget.difficulty };
+            observedBookMeta.current = {
+              domain: att.currentTarget.domain,
+              difficulty: att.currentTarget.difficulty,
+            };
             pulseStrength.current = 0.6; // small arrival pulse
-            
+
             // Check if book has full content and decide whether to read
-            const bookContent = att.currentTarget.object.userData.bookContent as BookContent | undefined;
+            const bookContent = att.currentTarget.object.userData
+              .bookContent as BookContent | undefined;
             if (bookContent) {
-              const wantsToRead = decideTORead(bookContent, currentPersonality as "calm" | "curious" | "extrovert" | "chaotic" | "neutral");
+              const wantsToRead = decideTORead(
+                bookContent,
+                currentPersonality as
+                  | "calm"
+                  | "curious"
+                  | "extrovert"
+                  | "chaotic"
+                  | "neutral"
+              );
               if (wantsToRead) {
                 readingState.current = startReading(bookContent, t);
                 setThought(`"${bookContent.titulo}"... interesante`);
@@ -403,9 +512,15 @@ export default function Cube({
         } else {
           // Continue navigating: orient and jump periodically
           const timeSinceLastJump = t - nav.lastJumpAt;
-          const jumpInterval = getJumpInterval(currentPersonality as Personality);
+          const jumpInterval = getJumpInterval(
+            currentPersonality as Personality
+          );
 
-          if (capabilities.current.navigation && timeSinceLastJump > jumpInterval && phase.current === "navigating") {
+          if (
+            capabilities.current.navigation &&
+            timeSinceLastJump > jumpInterval &&
+            phase.current === "navigating"
+          ) {
             // Compute direction toward target
             const [dx, , dz] = computeJumpDirection(
               cubePos.current,
@@ -415,7 +530,9 @@ export default function Cube({
 
             if (dx !== 0 || dz !== 0) {
               // Apply jump impulse
-              const jumpStrength = getJumpStrength(currentPersonality as Personality);
+              const jumpStrength = getJumpStrength(
+                currentPersonality as Personality
+              );
               api.applyImpulse([dx, jumpStrength, dz], [0, 0, 0]);
               nav.lastJumpAt = t;
               // Trigger jump animation overlay without leaving navigating
@@ -427,7 +544,10 @@ export default function Cube({
 
           // Orient toward target if can navigate
           if (capabilities.current.navigation) {
-            const targetQuat = computeTargetOrientation(cubePos.current, nav.targetPosition);
+            const targetQuat = computeTargetOrientation(
+              cubePos.current,
+              nav.targetPosition
+            );
             const currentQuat = tmpQ.current.set(
               quatRef.current[0],
               quatRef.current[1],
@@ -466,48 +586,72 @@ export default function Cube({
       if (phase.current === "observing" && att.currentTarget) {
         att.interestTimer += delta;
         // Reading system: process emotions and knowledge from book content
-        if (att.currentTarget.type === "book" && readingState.current.currentBook) {
+        if (
+          att.currentTarget.type === "book" &&
+          readingState.current.currentBook
+        ) {
           readingTick.current += delta;
           if (readingTick.current >= 1) {
             readingTick.current = 0;
             const book = readingState.current.currentBook;
             const readSpeed = getReadingSpeed(
-              currentPersonality as "calm" | "curious" | "extrovert" | "chaotic" | "neutral",
+              currentPersonality as
+                | "calm"
+                | "curious"
+                | "extrovert"
+                | "chaotic"
+                | "neutral",
               book.dificultad
             );
-            
+
             // Update reading progress
             readingState.current.readingProgress += readSpeed;
-            
+
             // Process emotions every second while reading
             const { emotion, thought } = processEmotions(
               book,
               readingState.current.readingProgress,
-              currentPersonality as "calm" | "curious" | "extrovert" | "chaotic" | "neutral"
+              currentPersonality as
+                | "calm"
+                | "curious"
+                | "extrovert"
+                | "chaotic"
+                | "neutral"
             );
             setThought(thought);
-            
+
             // Track emotion experienced
             emotionsExperienced.current.add(emotion);
 
             // Progressively add key concepts from the book as knowledge topics
             const conceptos = book.propiedades.conceptos;
             if (conceptos && conceptos.length > 0) {
-              const idx = Math.floor(Math.min(0.999, readingState.current.readingProgress) * conceptos.length);
+              const idx = Math.floor(
+                Math.min(0.999, readingState.current.readingProgress) *
+                  conceptos.length
+              );
               for (let i = 0; i <= idx; i++) {
                 const c = conceptos[i];
                 if (c) conceptsLearned.current.add(c);
               }
             }
-            
+
             // Small pulse on strong emotions
-            if (["Miedo", "Ira", "Asco", "Fascinación", "Alegría"].includes(emotion)) {
+            if (
+              ["Miedo", "Ira", "Asco", "Fascinación", "Alegría"].includes(
+                emotion
+              )
+            ) {
               pulseStrength.current = 0.4;
             }
-            
+
             // Apply knowledge gains progressively
-            const knowledgeGains = applyKnowledgeGains(knowledge.current as unknown as Record<string, number>, book, readSpeed);
-            Object.keys(knowledgeGains).forEach(key => {
+            const knowledgeGains = applyKnowledgeGains(
+              knowledge.current as unknown as Record<string, number>,
+              book,
+              readSpeed
+            );
+            Object.keys(knowledgeGains).forEach((key) => {
               if (key in knowledge.current) {
                 // merge chunked gains into structured knowledge state
                 knowledge.current = {
@@ -516,27 +660,32 @@ export default function Cube({
                 } as typeof knowledge.current;
               }
             });
-            
+
             // Capability progress: navigation from relevant domains
             const relevantDomains = ["Ciencia", "Física", "Biología"];
-            const hasRelevant = book.propiedades.conocimientos.some(k => relevantDomains.includes(k));
+            const hasRelevant = book.propiedades.conocimientos.some((k) =>
+              relevantDomains.includes(k)
+            );
             if (!capabilities.current.navigation && hasRelevant) {
               const navRate = readSpeed * 0.3;
-              learningProgress.current.navigation = Math.min(1, learningProgress.current.navigation + navRate);
+              learningProgress.current.navigation = Math.min(
+                1,
+                learningProgress.current.navigation + navRate
+              );
               if (learningProgress.current.navigation >= 1) {
                 capabilities.current.navigation = true;
                 setThought("¡Ahora entiendo cómo moverme!");
                 pulseStrength.current = 1;
               }
             }
-            
+
             // Check if finished reading
             if (readingState.current.readingProgress >= 1) {
               // Track traits acquired from this book
-              book.propiedades.traits_ganados.forEach(trait => {
+              book.propiedades.traits_ganados.forEach((trait) => {
                 traitsAcquired.current.add(trait);
               });
-              
+
               // Track book read
               if (!booksRead.current.includes(book.titulo)) {
                 booksRead.current.push(book.titulo);
@@ -547,9 +696,17 @@ export default function Cube({
               if (conceptosAll && conceptosAll.length) {
                 conceptosAll.forEach((c) => conceptsLearned.current.add(c));
               }
-              
+
               // Book finished! Check for personality change
-              const changeResult = checkPersonalityChange(book, currentPersonality as "calm" | "curious" | "extrovert" | "chaotic" | "neutral");
+              const changeResult = checkPersonalityChange(
+                book,
+                currentPersonality as
+                  | "calm"
+                  | "curious"
+                  | "extrovert"
+                  | "chaotic"
+                  | "neutral"
+              );
               if (changeResult.shouldChange && changeResult.newPersonality) {
                 setCurrentPersonality(changeResult.newPersonality);
                 setThought(changeResult.reason || "Me siento... diferente");
@@ -558,26 +715,52 @@ export default function Cube({
                 setThought(getCategoryThought(book.categoria));
                 pulseStrength.current = 0.8;
               }
-              
+
               // Clear reading state + brief visual flash via pulse/point light
               // Mark a stronger pulse; the point light will reflect it
               pulseStrength.current = Math.max(pulseStrength.current, 1);
               readingState.current = finishReading();
             }
           }
-        } else if (att.currentTarget.type === "book" && !readingState.current.currentBook) {
+        } else if (
+          att.currentTarget.type === "book" &&
+          !readingState.current.currentBook
+        ) {
           // Just observing without reading (rejected or no content)
           observeTick.current += delta;
           if (observeTick.current >= 1) {
             observeTick.current = 0;
-            const domain = observedBookMeta.current?.domain as KnowledgeDomain | undefined;
+            const domain = observedBookMeta.current?.domain as
+              | KnowledgeDomain
+              | undefined;
             const difficulty = observedBookMeta.current?.difficulty;
-            const baseGain = difficulty === "advanced" ? 0.08 : difficulty === "intermediate" ? 0.06 : 0.04;
-            const personalityMultiplier = currentPersonality === "curious" ? 1.15 : currentPersonality === "extrovert" ? 0.9 : currentPersonality === "calm" ? 0.65 : currentPersonality === "chaotic" ? 0.8 : 0.85;
+            const baseGain =
+              difficulty === "advanced"
+                ? 0.08
+                : difficulty === "intermediate"
+                  ? 0.06
+                  : 0.04;
+            const personalityMultiplier =
+              currentPersonality === "curious"
+                ? 1.15
+                : currentPersonality === "extrovert"
+                  ? 0.9
+                  : currentPersonality === "calm"
+                    ? 0.65
+                    : currentPersonality === "chaotic"
+                      ? 0.8
+                      : 0.85;
             const stepGain = baseGain * personalityMultiplier;
             if (domain) {
-              const bookStep: BookSpec = { domain, affect: { emotion: "curious", knowledgeGain: stepGain } } as BookSpec;
-              const res = applyBookEffects(knowledge.current, bookStep, personalityForRegistry);
+              const bookStep: BookSpec = {
+                domain,
+                affect: { emotion: "curious", knowledgeGain: stepGain },
+              } as BookSpec;
+              const res = applyBookEffects(
+                knowledge.current,
+                bookStep,
+                personalityForRegistry
+              );
               knowledge.current = res.knowledge;
             }
           }
@@ -673,7 +856,11 @@ export default function Cube({
 
       // Confusion wobble: subtle opposing X/Z oscillation when confused
       const text = (thought || "").toLowerCase();
-      const confused = text.includes("confusión") || text.includes("no entiendo") || text.includes("¿") || text.includes("?");
+      const confused =
+        text.includes("confusión") ||
+        text.includes("no entiendo") ||
+        text.includes("¿") ||
+        text.includes("?");
       if (confused) {
         const wobbleAmp = 0.03;
         const wobble = Math.sin(t * 6 + (id.charCodeAt(0) % 11)) * wobbleAmp;
@@ -744,8 +931,20 @@ export default function Cube({
       if (tiltExperienceTick.current >= 1) {
         tiltExperienceTick.current = 0;
         // Progress faster for curious/extrovert, slower for calm
-        const experienceRate = currentPersonality === "curious" ? 0.06 : currentPersonality === "extrovert" ? 0.05 : currentPersonality === "neutral" ? 0.04 : currentPersonality === "calm" ? 0.025 : 0.035;
-        learningProgress.current.selfRighting = Math.min(1, learningProgress.current.selfRighting + experienceRate);
+        const experienceRate =
+          currentPersonality === "curious"
+            ? 0.06
+            : currentPersonality === "extrovert"
+              ? 0.05
+              : currentPersonality === "neutral"
+                ? 0.04
+                : currentPersonality === "calm"
+                  ? 0.025
+                  : 0.035;
+        learningProgress.current.selfRighting = Math.min(
+          1,
+          learningProgress.current.selfRighting + experienceRate
+        );
         if (learningProgress.current.selfRighting >= 1) {
           capabilities.current.selfRighting = true;
           setThought("¡Aprendí a enderezarme solo!");
@@ -755,7 +954,6 @@ export default function Cube({
     }
 
     if (capabilities.current.selfRighting) {
-
       // If significantly tilted and we don't already have a target, compute it
       if (tilt > 0.6 && uprightTarget.current == null) {
         const e = tmpEuler.current.setFromQuaternion(q, "YXZ");
@@ -794,14 +992,27 @@ export default function Cube({
       }
     }
     // Face the camera gently when selected and idle-ish
-    if (selected && !isNavigating.current && (phase.current === "idle" || phase.current === "settle" || phase.current === "observing")) {
+    if (
+      selected &&
+      !isNavigating.current &&
+      (phase.current === "idle" ||
+        phase.current === "settle" ||
+        phase.current === "observing")
+    ) {
       const cam = state.camera.position;
       const [cx, , cz] = cubePos.current;
       const dx = cam.x - cx;
       const dz = cam.z - cz;
       const yaw = Math.atan2(dx, dz);
-      const desired = new Quaternion().setFromEuler(new Euler(0, yaw, 0, "YXZ"));
-      const qNow = tmpQ.current.set(quatRef.current[0], quatRef.current[1], quatRef.current[2], quatRef.current[3]);
+      const desired = new Quaternion().setFromEuler(
+        new Euler(0, yaw, 0, "YXZ")
+      );
+      const qNow = tmpQ.current.set(
+        quatRef.current[0],
+        quatRef.current[1],
+        quatRef.current[2],
+        quatRef.current[3]
+      );
       qNow.slerp(desired, Math.min(1, 4 * delta));
       api.quaternion.set(qNow.x, qNow.y, qNow.z, qNow.w);
     }
@@ -821,7 +1032,8 @@ export default function Cube({
       const pulseEmissiveBoost = 0.4 * pulseStrength.current;
       let emi = vis.emissiveIntensity + pulseEmissiveBoost;
       if (currentPersonality === "chaotic") {
-        const flick = 0.06 * (0.5 + 0.5 * Math.sin(t * 18 + (id.charCodeAt(0) % 7)));
+        const flick =
+          0.06 * (0.5 + 0.5 * Math.sin(t * 18 + (id.charCodeAt(0) % 7)));
         emi += flick;
       }
       materialRef.current.emissiveIntensity = emi;
@@ -831,17 +1043,19 @@ export default function Cube({
 
     // Update selected point light intensity from pulse
     if (selLightRef.current) {
-      selLightRef.current.intensity = selected ? 0.6 + 1.6 * pulseStrength.current : 0;
+      selLightRef.current.intensity = selected
+        ? 0.6 + 1.6 * pulseStrength.current
+        : 0;
     }
   });
 
   useEffect(() => {
     let mounted = true;
     const ideas = [
-      "hmm...", 
-      "¿Salto?", 
-      "qué bonito cubo", 
-      "zig zag", 
+      "hmm...",
+      "¿Salto?",
+      "qué bonito cubo",
+      "zig zag",
       "***",
       "¡Weee!", // happy
       "me siento triste", // sad

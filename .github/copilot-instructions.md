@@ -73,6 +73,8 @@ import publicAsset from '/public-asset.svg'  // Public folder assets use /
 
 ### Interaction & Animation Pattern
 - **Selection**: Parent (`App.tsx`) tracks `selectedId` state shared between `R3FCanvas`, `CubeList`, and `CubeFooter`. Click cube selects; click vacío (`onPointerMissed`) deselecciona.
+- **Camera follow system**: `FollowCamera` component with smooth lerp (k=2.5*delta), preserves user rotation via controlstart/controlend events, toggleable with Space key.
+- **Camera lock toggle**: `cameraLocked` state managed at `App.tsx`, passed to `R3FCanvas` and `CubeList`. Space key context-aware: toggle lock when cube selected, hop when no selection.
 - **Manual hop test**: Parent listens to `Space` and increments a `hopSignal` counter; `Cube` detects changes to trigger jump when `selected`.
 - **Squash & Stretch**: `Cube` uses `useFrame` to lerp `scale` toward phase targets:
 	- Pre-salto: `[1.25, 0.75, 1.25]`
@@ -86,8 +88,19 @@ import publicAsset from '/public-asset.svg'  // Public folder assets use /
 	1. **Fases físicas** (preparando salto → prep, impacto → land)
 	2. **Estados cognitivos** (keywords en thought: "weee/!" → happy, "triste" → sad, "grr/frustrado" → angry, "hmm/¿/?" → curious)
 	3. **Personalidad baseline** (extrovert → happy, chaotic → angry, curious → curious cuando idle)
+- **Confusion wobble**: Detecta "confusión", "¿", "?", "no entiendo" en thought → aplica sin(time*6)*0.03 a scale X/Z.
+- **Face camera**: Cuando selected + !navigating + idle/settle/observing → slerp quaternion hacia yaw de cámara (rate: 4*delta).
+- **Point light**: Child component en Cube seleccionado, intensity = 0.6 + 1.6*pulseStrength, pulsa con aprendizaje.
+- **Chaotic flicker**: Personality chaotic → emissiveIntensity += sin(time*18)*0.06 para efecto nervioso.
+- **Book completion flash**: pulseStrength = max(current, 1) al terminar lectura → dispara luz y emissive.
 - **Personalidad/estado visual**: `Cube` acepta `personality` (`calm|extrovert|curious|chaotic|neutral`). `computeVisualTargets(thought, personality, selected, hovered)` devuelve `{ color, emissiveIntensity, roughness, metalness, breathAmp, jitterAmp }` para material y micro-animaciones (respiración/jitter sutil).
-- **ReactFlow Knowledge Graph**: `CubeFooter` renderiza un grafo interactivo con nodos de emociones, personalidad, y conocimientos del cubo seleccionado. Usa `@xyflow/react` con nodos posicionados, edges animados, controles de zoom/pan, y minimap.
+- **ReactFlow Knowledge Graph**: `CubeFooter` renderiza un grafo interactivo con nodos de emociones, personalidad, conocimientos (philosophy, theology, science, arts...), y conceptos aprendidos (últimos 6). Usa `@xyflow/react` con nodos posicionados, edges animados, controles de zoom/pan, y minimap.
+- **Learning & Knowledge System**:
+	- **Community registry**: Map-based pub-sub con RAF throttling, detecta cambios en position, personality, readingExperiences (incluye conceptsLearned).
+	- **Knowledge domains**: philosophy, theology, science, arts, history, literature, mathematics, psychology (theology separado de philosophy).
+	- **Book reading**: BookReadingSystem procesa lectura, mapea "Teología" → "theology", trackea conceptos progresivamente.
+	- **Concept tracking**: Set-based deduplication, almacena conceptos en readingExperiences.conceptsLearned.
+	- **Visual feedback**: Point light pulsa con pulseStrength, book completion dispara flash.
 - **Best practices**:
 	- No mutar variables locales después del render; usar `useRef` + `useFrame`.
 	- Evitar suscripciones en render; mover a `useEffect` y limpiar (`unsub()`).
@@ -96,6 +109,8 @@ import publicAsset from '/public-asset.svg'  // Public folder assets use /
 	- `Select` de postprocessing requiere `enabled={boolean}` (no `null`).
 	- `Outline.visibleEdgeColor` acepta número (p.ej., `0xffffff`).
 	- Cejas usan `boxGeometry` (no `capsuleGeometry`) para orientación horizontal por defecto.
+	- Camera lock state managed at App.tsx level, propagated to R3FCanvas and CubeList.
+	- FollowCamera checks locked prop: early return cuando locked=false para deshabilitar seguimiento.
 
 ## ESLint Configuration
 
@@ -168,12 +183,39 @@ Uses flat config with these plugins:
 	- Transient props (`$selected`, `$auto`) for dynamic styling
 	- Displays: ID, personality, eyeStyle, position, mode (auto/manual)
 
+- UI: `src/ui/components/CubeList.tsx`
+	- Sidebar con camera lock indicator cuando cube selected
+	- Shows 🔒/🔓 icon with toggle hint "Presiona ESPACIO para..."
+	- Styled with `CameraHint` component (green locked, orange free)
+	- Receives `cameraLocked` prop from App.tsx
+
 - UI: `src/ui/components/CubeFooter.tsx`
 	- ReactFlow graph with central cube node
-	- Emotion nodes (left), personality nodes (right), knowledge nodes (bottom)
+	- Emotion nodes (left), personality nodes (right), knowledge nodes (bottom), concept nodes (yellow badges)
+	- Concept nodes show last 6 learned (🧩 emoji)
 	- Active nodes have animated edges connecting to/from central cube
 	- Uses `useMemo` to build nodes/edges, `useCallback` for handlers
 	- MiniMap colors nodes based on active state
 	- Panel displays cube title
 
-If adding new organisms or motions, reuse the pattern: drive phase/target via refs, schedule impulses, lerp visuals in `useFrame`, subscribe to Cannon in `useEffect`. For random generation in React 19, use `useState(() => ...)` initializer to satisfy purity constraints. For eyebrow expressions, use `boxGeometry` with width > height for horizontal orientation.
+- Systems: `src/ui/scene/systems/Community.ts`
+	- Global Map-based registry (`cubesRegistry`)
+	- Subscribe pattern with RAF throttling
+	- `updateCube` detects changes in position, personality, readingExperiences (including conceptsLearned length)
+	- `getCube`, `setCube`, `getAllCubes` for pub-sub access
+
+- Systems: `src/ui/scene/systems/BookReadingSystem.ts`
+	- `DOMAIN_MAPPING`: maps Spanish book categories to KnowledgeDomain
+	- Processes reading progress, updates knowledge state
+	- Tracks concepts progressively during reading
+
+- Guidelines: `src/ui/scene/guidelines/instrucciones.ts`
+	- `KnowledgeDomain` type with theology as separate field
+	- `KnowledgeState` initializer with all domains
+	- `DEFAULT_BOOK_EFFECTS` for theology domain
+
+- Data: `src/ui/scene/data/booksLibrary.ts`
+	- `BookContent` interface with `conceptos?: string[]`
+	- La Biblia includes conceptos: ["Dios", "Fe", "Pecado", "Perdón", "Amor", "Esperanza"]
+
+If adding new organisms or motions, reuse the pattern: drive phase/target via refs, schedule impulses, lerp visuals in `useFrame`, subscribe to Cannon in `useEffect`. For random generation in React 19, use `useState(() => ...)` initializer to satisfy purity constraints. For eyebrow expressions, use `boxGeometry` with width > height for horizontal orientation. For camera follow, use CameraControls with lerp smoothing and interaction detection via addEventListener.

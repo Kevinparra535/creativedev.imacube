@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import R3FCanvas from "./scene/R3FCanvas";
-import { CUBES_CONFIG } from "./scene/cubesConfig";
+import { CUBES_CONFIG } from "../config/cubesConfig";
 import { GlobalStyles } from "./styles/base";
 import CubeList from "./components/CubeList";
 import CubeFooter from "./components/CubeFooter";
