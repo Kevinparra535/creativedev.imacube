@@ -15,6 +15,7 @@
     "@react-three/fiber": "^9.4.0",
     "@react-three/postprocessing": "^3.0.4",
     "@types/three": "^0.181.0",
+    "@xyflow/react": "^12.9.3",
     "leva": "^0.10.1",
     "nice-color-palettes": "^4.0.0",
     "react": "^19.2.0",

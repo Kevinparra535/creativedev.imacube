@@ -3,6 +3,7 @@ import R3FCanvas from "./scene/R3FCanvas";
 import { CUBES_CONFIG } from "./scene/cubesConfig";
 import { GlobalStyles } from "./styles/base";
 import CubeList from "./components/CubeList";
+import CubeFooter from "./components/CubeFooter";
 
 function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -16,6 +17,7 @@ function App() {
         selectedId={selectedId}
         onSelect={setSelectedId}
       />
+      <CubeFooter cubes={CUBES_CONFIG} selectedId={selectedId} />
     </>
   );
 }

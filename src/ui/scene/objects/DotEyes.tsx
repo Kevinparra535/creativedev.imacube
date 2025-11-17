@@ -6,12 +6,14 @@ export interface DotEyesProps {
   position?: [number, number, number];
   look?: [number, number]; // target dot offset
   eyeScale?: [number, number]; // overall scale for size adjustments
+  mood?: "neutral" | "prep" | "air" | "land" | "curious" | "happy" | "angry" | "sad";
 }
 
 export function DotEyes({
   position = [0, 0.12, 0.51],
   look = [0, 0],
   eyeScale = [1, 1],
+  mood = "neutral",
 }: DotEyesProps) {
   const leftEyeRef = useRef<Group | null>(null);
   const rightEyeRef = useRef<Group | null>(null);
@@ -19,12 +21,18 @@ export function DotEyes({
   const rightDotRef = useRef<Mesh | null>(null);
   const leftSparkRef = useRef<Mesh | null>(null);
   const rightSparkRef = useRef<Mesh | null>(null);
+  const leftBrowRef = useRef<Mesh | null>(null);
+  const rightBrowRef = useRef<Mesh | null>(null);
 
   const curLook = useRef<[number, number]>([0, 0]);
   const curScale = useRef<[number, number]>([1, 1]);
   const blink = useRef(1);
   const targetBlink = useRef(1);
   const nextBlinkAt = useRef(0);
+
+  // Brow animation state
+  const curBrowY = useRef(0);
+  const curBrowRotation = useRef(0);
 
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
@@ -73,10 +81,73 @@ export function DotEyes({
     const sparkY = oy + 0.022;
     if (leftSparkRef.current) leftSparkRef.current.position.set(sparkX, sparkY, 0.007);
     if (rightSparkRef.current) rightSparkRef.current.position.set(sparkX, sparkY, 0.007);
+
+    // Eyebrow expression based on mood
+    let targetBrowY = 0.22;
+    let targetBrowRotation = 0;
+
+    switch (mood) {
+      case "prep": // Concentrado/Focused
+        targetBrowY = 0.2;
+        targetBrowRotation = -0.2; // Furrowed inward
+        break;
+      case "air": // En el aire (sorpresa)
+        targetBrowY = 0.27;
+        targetBrowRotation = 0.15; // Raised in surprise
+        break;
+      case "land": // Impacto
+        targetBrowY = 0.18;
+        targetBrowRotation = -0.1; // Slight frown
+        break;
+      case "happy": // Feliz
+        targetBrowY = 0.26;
+        targetBrowRotation = 0.18; // Arched upward
+        break;
+      case "curious": // Curioso
+        targetBrowY = 0.24;
+        targetBrowRotation = 0.12; // Slightly raised
+        break;
+      case "angry": // Enojado
+        targetBrowY = 0.19;
+        targetBrowRotation = -0.3; // Strong furrowed
+        break;
+      case "sad": // Triste
+        targetBrowY = 0.21;
+        targetBrowRotation = 0.2; // Raised inner corners
+        break;
+      default: // neutral
+        targetBrowY = 0.22;
+        targetBrowRotation = 0;
+    }
+
+    const browK = 6;
+    curBrowY.current += (targetBrowY - curBrowY.current) * Math.min(1, browK * delta);
+    curBrowRotation.current += (targetBrowRotation - curBrowRotation.current) * Math.min(1, browK * delta);
+
+    if (leftBrowRef.current) {
+      leftBrowRef.current.position.y = curBrowY.current;
+      leftBrowRef.current.rotation.z = curBrowRotation.current;
+    }
+    if (rightBrowRef.current) {
+      rightBrowRef.current.position.y = curBrowY.current;
+      rightBrowRef.current.rotation.z = -curBrowRotation.current;
+    }
   });
 
   return (
     <group position={position}>
+      {/* Left eyebrow */}
+      <mesh ref={leftBrowRef} position={[-0.16, 0.22, 0.008]}>
+        <boxGeometry args={[0.12, 0.02, 0.02]} />
+        <meshStandardMaterial color="#1a1a1a" roughness={0.8} metalness={0} />
+      </mesh>
+
+      {/* Right eyebrow */}
+      <mesh ref={rightBrowRef} position={[0.16, 0.22, 0.008]}>
+        <boxGeometry args={[0.12, 0.02, 0.02]} />
+        <meshStandardMaterial color="#1a1a1a" roughness={0.8} metalness={0} />
+      </mesh>
+
       {/* Left eye as a dot */}
       <group ref={leftEyeRef} position={[-0.16, 0, 0]}>
         <mesh ref={leftDotRef} position={[0, 0, 0.005]}>

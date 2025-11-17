@@ -73,49 +73,80 @@ export default function Cube({
   const tmpV3 = useRef(new Vector3());
   const tmpScale = useRef(new Vector3());
 
-  // Eyes targets derived from thought
-  const { eyeTargetScale, eyeTargetLook } = useMemo(() => {
+  // Eyes targets derived from thought and personality
+  const { eyeTargetScale, eyeTargetLook, mood } = useMemo(() => {
     const txt = (thought || "").toLowerCase();
-    let mood: "neutral" | "prep" | "air" | "land" | "curious" = "neutral";
+    let mood: "neutral" | "prep" | "air" | "land" | "curious" | "happy" | "angry" | "sad" = "neutral";
+    
+    // Priority 1: Physical jump phases (temporary emotional states)
     if (txt.includes("preparando")) mood = "prep";
-    else if (txt.includes("weee")) mood = "air";
+    else if (txt.includes("weee") || txt.includes("!")) mood = "happy"; // Changed from "air" to "happy"
     else if (txt.includes("plof")) mood = "land";
+    // Priority 2: Cognitive/emotional states
     else if (
       txt.includes("hmm") ||
       txt.includes("¿") ||
+      txt.includes("?") ||
       txt.includes("zig") ||
       txt.includes("bonito")
     )
       mood = "curious";
+    else if (txt.includes("triste") || txt.includes("😢"))
+      mood = "sad";
+    else if (txt.includes("enojado") || txt.includes("grr") || txt.includes("frustrado"))
+      mood = "angry";
+    // Priority 3: Personality baseline (only check personality, don't access phase ref)
+    else {
+      if (personality === "extrovert") mood = "happy";
+      else if (personality === "chaotic") mood = "angry";
+      else if (personality === "curious") mood = "curious";
+    }
 
     switch (mood) {
       case "prep":
         return {
           eyeTargetScale: [1.2, 0.65] as [number, number],
           eyeTargetLook: [0, -0.04] as [number, number],
-        };
-      case "air":
-        return {
-          eyeTargetScale: [1.3, 1.3] as [number, number],
-          eyeTargetLook: [0, 0.08] as [number, number],
+          mood,
         };
       case "land":
         return {
           eyeTargetScale: [1.4, 0.5] as [number, number],
           eyeTargetLook: [0.02, -0.06] as [number, number],
+          mood,
+        };
+      case "happy":
+        return {
+          eyeTargetScale: [1.15, 1.15] as [number, number],
+          eyeTargetLook: [0, 0.05] as [number, number],
+          mood,
         };
       case "curious":
         return {
           eyeTargetScale: [1.05, 1] as [number, number],
           eyeTargetLook: [0.08, 0] as [number, number],
+          mood,
+        };
+      case "angry":
+        return {
+          eyeTargetScale: [1.1, 0.85] as [number, number],
+          eyeTargetLook: [0, -0.02] as [number, number],
+          mood,
+        };
+      case "sad":
+        return {
+          eyeTargetScale: [0.95, 0.9] as [number, number],
+          eyeTargetLook: [0, -0.05] as [number, number],
+          mood,
         };
       default:
         return {
           eyeTargetScale: [1, 1] as [number, number],
           eyeTargetLook: [0, 0] as [number, number],
+          mood,
         };
     }
-  }, [thought]);
+  }, [thought, personality]);
 
   // Material & learning pulse
   const materialRef = useRef<MeshStandardMaterial | null>(null);
@@ -332,7 +363,17 @@ export default function Cube({
 
   useEffect(() => {
     let mounted = true;
-    const ideas = ["hmm...", "¿Salto?", "qué bonito cubo", "zig zag", "***"];
+    const ideas = [
+      "hmm...", 
+      "¿Salto?", 
+      "qué bonito cubo", 
+      "zig zag", 
+      "***",
+      "¡Weee!", // happy
+      "me siento triste", // sad
+      "grr... frustrado", // angry
+      "esto es curioso...", // curious
+    ];
     const tick = () => {
       if (mounted && phase.current === "idle")
         setThought(ideas[Math.floor(Math.random() * ideas.length)]);
@@ -409,12 +450,14 @@ export default function Cube({
               position={[0, 0.12, 0.51]}
               look={finalLook}
               eyeScale={eyeTargetScale}
+              mood={mood}
             />
           ) : (
             <DotEyes
               position={[0, 0.12, 0.51]}
               look={finalLook}
               eyeScale={eyeTargetScale}
+              mood={mood}
             />
           );
         })()}
