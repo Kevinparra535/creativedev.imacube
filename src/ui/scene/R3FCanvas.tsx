@@ -9,12 +9,18 @@ import {
   Outline,
 } from "@react-three/postprocessing";
 import Cube from "./components/Cube";
+import type { CubeProps } from "./components/Cube";
 import SandBox from "./objects/SandBox";
 import Ambients from "./objects/Ambients";
 import { Books } from "./objects/Books";
+import { CUBES_CONFIG } from "./cubesConfig";
 
-export default function R3FCanvas() {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+interface R3FCanvasProps {
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}
+
+export default function R3FCanvas({ selectedId, onSelect }: R3FCanvasProps) {
   const [hopSignal, setHopSignal] = useState(0);
 
   const iceTextureMap = useLoader(TextureLoader, "/textures/ice_texture.jpg");
@@ -66,47 +72,20 @@ export default function R3FCanvas() {
               />
             </EffectComposer>
 
-            <group onPointerMissed={() => setSelectedId(null)}>
-              <Cube
-                id="c1"
-                position={[0, 8, 0]}
-                auto={false}
-                selected={selectedId === "c1"}
-                hopSignal={hopSignal}
-                onSelect={setSelectedId}
-              />
-              <Cube
-                id="c2"
-                position={[1, 7, 1]}
-                auto={false}
-                selected={selectedId === "c2"}
-                hopSignal={hopSignal}
-                onSelect={setSelectedId}
-              />
-              <Cube
-                id="c3"
-                position={[-1, 6, -1]}
-                auto={false}
-                selected={selectedId === "c3"}
-                hopSignal={hopSignal}
-                onSelect={setSelectedId}
-              />
-              <Cube
-                id="c4"
-                position={[2, 9, -2]}
-                auto={false}
-                selected={selectedId === "c4"}
-                hopSignal={hopSignal}
-                onSelect={setSelectedId}
-              />
-              <Cube
-                id="c5"
-                position={[-2, 5, 2]}
-                auto={false}
-                selected={selectedId === "c5"}
-                hopSignal={hopSignal}
-                onSelect={setSelectedId}
-              />
+            <group onPointerMissed={() => onSelect("")}>
+              {CUBES_CONFIG.map((cube) => (
+                <Cube
+                  key={cube.id}
+                  id={cube.id}
+                  position={cube.position}
+                  auto={cube.auto}
+                  personality={cube.personality as CubeProps["personality"]}
+                  eyeStyle={cube.eyeStyle as CubeProps["eyeStyle"]}
+                  selected={selectedId === cube.id}
+                  hopSignal={hopSignal}
+                  onSelect={onSelect}
+                />
+              ))}
             </group>
           </Selection>
         </Physics>
