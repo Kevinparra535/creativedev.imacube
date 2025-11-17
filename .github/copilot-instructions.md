@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-React 19.2 + TypeScript + Vite (via `rolldown-vite` override). Modern ESM, strict TS, flat ESLint. Includes a Three.js scene powered by React Three Fiber with physics, postprocessing, thought bubbles, cartoon eyes, and self-righting cubes.
+React 19.2 + TypeScript + Vite (via `rolldown-vite` override). Modern ESM, strict TS, flat ESLint. Includes a Three.js scene powered by React Three Fiber with physics, postprocessing, thought bubbles, cartoon eyes with eyebrows, self-righting cubes, and a ReactFlow-powered knowledge graph UI.
 
 ## Key Architecture Decisions
 
@@ -11,6 +11,8 @@ React 19.2 + TypeScript + Vite (via `rolldown-vite` override). Modern ESM, stric
 - **Flat ESLint Config**: Uses the new flat config format (`eslint.config.js`) with `defineConfig` and `globalIgnores` - avoid legacy `.eslintrc` patterns.
 - **TypeScript Project References**: Uses composite config with `tsconfig.app.json` (app code) and `tsconfig.node.json` (build tooling).
 - **3D Scene & Physics**: `@react-three/fiber` + `@react-three/cannon` for physics, `@react-three/drei` helpers, and `@react-three/postprocessing` for outlines/selection.
+- **UI Framework**: Styled-components v6 with transient props (`$propName`) for dynamic styling.
+- **Knowledge Graph**: ReactFlow (`@xyflow/react`) for interactive node visualization in footer.
 
 ## Development Workflows
 
@@ -58,9 +60,11 @@ import publicAsset from '/public-asset.svg'  // Public folder assets use /
 ### R3F Scene Structure (3D)
 - **Scene file**: `src/ui/scene/R3FCanvas.tsx`
 - **Components**: `src/ui/scene/components/Cube.tsx`, `src/ui/scene/components/Plane.tsx`
-- **Styles**: `src/ui/scene/ThoughtBubble.css` (desde componentes: `import "../ThoughtBubble.css"`)
-- **Objects**: `src/ui/scene/objects/{BubbleEyes,DotEyes}.tsx` (ojos intercambiables por props), `src/ui/scene/objects/Books.tsx` (libros físicos aleatorios)
+- **Config**: `src/ui/scene/cubesConfig.ts` (centralized cube configuration array)
+- **Objects**: `src/ui/scene/objects/{BubbleEyes,DotEyes}.tsx` (ojos intercambiables por props con cejas animadas), `src/ui/scene/objects/Books.tsx` (libros físicos aleatorios)
 - **Visual**: `src/ui/scene/visual/visualState.ts` (mapea personalidad/estado → material y micro-animaciones)
+- **UI Components**: `src/ui/components/{CubeList,CubeFooter}.tsx` (sidebar y footer con ReactFlow)
+- **Styles**: `src/ui/styles/{CubeList,CubeFooter}.styles.ts` (styled-components), `src/ui/styles/ThoughtBubble.css` (legacy CSS para burbujas)
 - **Sandbox geometry**: 6 `Plane` bodies forming a closed cube; `Cube` bodies inside.
 - **Physics config**: `Physics` node with `gravity`, `defaultContactMaterial` (tuned `restitution`, `friction`, `contactEquationRelaxation` for springy collisions).
 - **Materials**: Dynamic restitution/friction on cubes/planes to achieve bouncy, "gel-like" feel.
@@ -68,7 +72,7 @@ import publicAsset from '/public-asset.svg'  // Public folder assets use /
 - **Postprocessing**: `EffectComposer` + `Outline` for hover/selection highlight.
 
 ### Interaction & Animation Pattern
-- **Selection**: Parent tracks `selectedId` and passes `selected` + `onSelect` to each `Cube`. Click selects; click vacío (`onPointerMissed`) deselecciona.
+- **Selection**: Parent (`App.tsx`) tracks `selectedId` state shared between `R3FCanvas`, `CubeList`, and `CubeFooter`. Click cube selects; click vacío (`onPointerMissed`) deselecciona.
 - **Manual hop test**: Parent listens to `Space` and increments a `hopSignal` counter; `Cube` detects changes to trigger jump when `selected`.
 - **Squash & Stretch**: `Cube` uses `useFrame` to lerp `scale` toward phase targets:
 	- Pre-salto: `[1.25, 0.75, 1.25]`
@@ -76,14 +80,22 @@ import publicAsset from '/public-asset.svg'  // Public folder assets use /
 	- Aterrizaje: `[1.3, 0.7, 1.3]` → luego ` [1,1,1]`
 - **Impulso físico**: `api.applyImpulse([dx, 3.2, dz], [0,0,0])` con `dx/dz` aleatorios (en modo auto) o sólo al presionar espacio (modo test).
 - **Self-righting (auto-enderezado)**: Suscríbete a `api.quaternion`, calcula el `tilt` mediante el up-vector (`acos(up.y)`), genera un objetivo vertical preservando yaw y aplica `Quaternion.slerp` con amortiguación de `angularVelocity` para estabilizar.
- - **Ojos intercambiables**: `Cube` acepta `eyeStyle={"bubble"|"dot"}` y renderiza `BubbleEyes` o `DotEyes` sobre la cara +Z.
- - **Personalidad/estado visual**: `Cube` acepta `personality` (`calm|extrovert|curious|chaotic|neutral`). `computeVisualTargets(thought, personality, selected, hovered)` devuelve `{ color, emissiveIntensity, roughness, metalness, breathAmp, jitterAmp }` para material y micro-animaciones (respiración/jitter sutil).
+- **Ojos intercambiables**: `Cube` acepta `eyeStyle={"bubble"|"dot"}` y renderiza `BubbleEyes` o `DotEyes` sobre la cara +Z.
+- **Cejas animadas**: Ambos estilos de ojos incluyen cejas (`boxGeometry` horizontal) con 8 expresiones de mood (happy, sad, angry, curious, prep, air, land, neutral). Las cejas se animan mediante `useFrame` con lerp suave de posición Y y rotación Z.
+- **Mood calculation**: `Cube` calcula mood con 3 prioridades:
+	1. **Fases físicas** (preparando salto → prep, impacto → land)
+	2. **Estados cognitivos** (keywords en thought: "weee/!" → happy, "triste" → sad, "grr/frustrado" → angry, "hmm/¿/?" → curious)
+	3. **Personalidad baseline** (extrovert → happy, chaotic → angry, curious → curious cuando idle)
+- **Personalidad/estado visual**: `Cube` acepta `personality` (`calm|extrovert|curious|chaotic|neutral`). `computeVisualTargets(thought, personality, selected, hovered)` devuelve `{ color, emissiveIntensity, roughness, metalness, breathAmp, jitterAmp }` para material y micro-animaciones (respiración/jitter sutil).
+- **ReactFlow Knowledge Graph**: `CubeFooter` renderiza un grafo interactivo con nodos de emociones, personalidad, y conocimientos del cubo seleccionado. Usa `@xyflow/react` con nodos posicionados, edges animados, controles de zoom/pan, y minimap.
 - **Best practices**:
 	- No mutar variables locales después del render; usar `useRef` + `useFrame`.
 	- Evitar suscripciones en render; mover a `useEffect` y limpiar (`unsub()`).
+	- No acceder a `ref.current` durante render (React 19 purity violation); usar state o mover lógica a effects.
 	- Suscribirse a `api.position`, `api.velocity` y `api.quaternion` en `useEffect`.
 	- `Select` de postprocessing requiere `enabled={boolean}` (no `null`).
 	- `Outline.visibleEdgeColor` acepta número (p.ej., `0xffffff`).
+	- Cejas usan `boxGeometry` (no `capsuleGeometry`) para orientación horizontal por defecto.
 
 ## ESLint Configuration
 
@@ -118,13 +130,16 @@ Uses flat config with these plugins:
 	- Physics setup: `Physics` props and `Plane`/`Cube` bodies
 	- Interaction: `selectedId`, `hopSignal`, `onPointerMissed`, `onSelect`
 	- Animation: `useFrame` scale lerp, `applyImpulse` for jump
+	- Renders cubes from `CUBES_CONFIG` array
 
 - File: `src/ui/scene/components/Cube.tsx`
 	- Fases de salto: `idle → squash → air → land → settle`
 	- Auto-hop: programación mediante `nextHopAt`
 	- Auto-enderezado: suscripción a `api.quaternion`, cálculo de tilt y `slerp` a vertical preservando yaw
 	- Expresiones: `eyeStyle` (`bubble|dot`) + burbuja `Html` (estilos `ThoughtBubble.css`)
+	- Mood calculation: 3-tier priority (physical phases → cognitive states → personality baseline)
 	- Visual mapping: `computeVisualTargets` aplicado al material (`color/emissive/roughness/metalness`) y micro-animaciones (respiración/jitter)
+	- Eyebrows: mood-based positioning and rotation passed to eye components
 
 - File: `src/ui/scene/components/Plane.tsx`
 	- Colisionadores estáticos con material (restitución/fricción) ajustado para rebote "gel-like"
@@ -137,9 +152,28 @@ Uses flat config with these plugins:
 	- Each book casts/receives shadows for realistic lighting
 
 - Objects: `src/ui/scene/objects/{BubbleEyes,DotEyes}.tsx`
-	- Ojos con parpadeo y mirada lerpeada; reciben `look` y `eyeScale` desde `Cube`
+	- Ojos con parpadeo y mirada lerpeada; reciben `look`, `eyeScale`, y `mood` desde `Cube`
+	- Cejas animadas con `boxGeometry` horizontal (args: `[width, height, depth]`)
+	- Mood-based eyebrow expressions: happy (raised/arched), sad (inner raised), angry (low/furrowed), etc.
+	- `useFrame` lerps eyebrow Y position and Z rotation smoothly (k=6)
 
 - Visual: `src/ui/scene/visual/visualState.ts`
 	- `computeVisualTargets(thought, personality, selected, hovered)` → objetivos visuales coherentes con estado
+	- Personality base colors: calm (gray), extrovert (orange), curious (cyan), chaotic (red), neutral (gray)
+	- Thought keyword overlays: "weee/!" → happy yellow, "plof/triste" → sad blue, "hmm/¿" → curious green
 
-If adding new organisms or motions, reuse the pattern: drive phase/target via refs, schedule impulses, lerp visuals in `useFrame`, subscribe to Cannon in `useEffect`. For random generation in React 19, use `useState(() => ...)` initializer to satisfy purity constraints.
+- UI: `src/ui/components/CubeList.tsx`
+	- Sidebar styled with styled-components
+	- Maps `CUBES_CONFIG` to clickable cube buttons
+	- Transient props (`$selected`, `$auto`) for dynamic styling
+	- Displays: ID, personality, eyeStyle, position, mode (auto/manual)
+
+- UI: `src/ui/components/CubeFooter.tsx`
+	- ReactFlow graph with central cube node
+	- Emotion nodes (left), personality nodes (right), knowledge nodes (bottom)
+	- Active nodes have animated edges connecting to/from central cube
+	- Uses `useMemo` to build nodes/edges, `useCallback` for handlers
+	- MiniMap colors nodes based on active state
+	- Panel displays cube title
+
+If adding new organisms or motions, reuse the pattern: drive phase/target via refs, schedule impulses, lerp visuals in `useFrame`, subscribe to Cannon in `useEffect`. For random generation in React 19, use `useState(() => ...)` initializer to satisfy purity constraints. For eyebrow expressions, use `boxGeometry` with width > height for horizontal orientation.
