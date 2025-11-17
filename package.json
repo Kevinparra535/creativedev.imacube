@@ -16,6 +16,7 @@
     "@react-three/postprocessing": "^3.0.4",
     "@types/three": "^0.181.0",
     "leva": "^0.10.1",
+    "nice-color-palettes": "^4.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "styled-components": "^6.1.19",

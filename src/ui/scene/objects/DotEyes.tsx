@@ -51,13 +51,24 @@ export function DotEyes({
     if (leftEyeRef.current) leftEyeRef.current.scale.set(sx, blinkY, 1);
     if (rightEyeRef.current) rightEyeRef.current.scale.set(sx, blinkY, 1);
 
-    const ox = curLook.current[0];
-    const oy = curLook.current[1];
+    // Clamp dot within an implied eye orbit
+    let ox = curLook.current[0];
+    let oy = curLook.current[1];
+    const dotR = 0.055;
+    const whiteR = 0.14; // implied orbit similar to BubbleEyes
+    const margin = 0.012;
+    const maxDotOffset = Math.max(whiteR - dotR - margin, 0.0); // ~0.073
+    const len = Math.hypot(ox, oy) || 1;
+    if (len > maxDotOffset && len > 0) {
+      const k = maxDotOffset / len;
+      ox *= k;
+      oy *= k;
+    }
     if (leftDotRef.current) leftDotRef.current.position.set(ox, oy, 0.005);
     if (rightDotRef.current) rightDotRef.current.position.set(ox, oy, 0.005);
 
-    const sparkX = 0.015 + ox * 0.2;
-    const sparkY = 0.02 + oy * 0.2;
+    const sparkX = ox + 0.012;
+    const sparkY = oy + 0.016;
     if (leftSparkRef.current) leftSparkRef.current.position.set(sparkX, sparkY, 0.007);
     if (rightSparkRef.current) rightSparkRef.current.position.set(sparkX, sparkY, 0.007);
   });

@@ -56,18 +56,54 @@ export function BubbleEyes({
     if (leftEyeRef.current) leftEyeRef.current.scale.set(sx, blinkY, 1);
     if (rightEyeRef.current) rightEyeRef.current.scale.set(sx, blinkY, 1);
 
-    // Apply look offsets
+    // Apply look offsets with safe clamping inside the eye white
     const ox = curLook.current[0];
     const oy = curLook.current[1];
-    if (leftPupilRef.current) leftPupilRef.current.position.set(ox, oy, 0.005);
-    if (rightPupilRef.current) rightPupilRef.current.position.set(ox, oy, 0.005);
-    if (leftIrisRef.current) leftIrisRef.current.position.set(ox * 0.6, oy * 0.6, 0.003);
-    if (rightIrisRef.current) rightIrisRef.current.position.set(ox * 0.6, oy * 0.6, 0.003);
+    // Radii
+    const whiteR = 0.14;
+    const irisR = 0.08;
+    const pupilR = 0.045;
+    const margin = 0.01;
+    const maxIrisOffset = Math.max(whiteR - irisR - margin, 0.0); // 0.14 - 0.08 - 0.01 = 0.05
+    const maxPupilOffset = Math.max(irisR - pupilR - 0.008, 0.0); // inside iris ring
 
-    const sparkX = 0.045 + ox * 0.3;
-    const sparkY = 0.055 + oy * 0.3;
-    if (leftSparkRef.current) leftSparkRef.current.position.set(sparkX, sparkY, 0.007);
-    if (rightSparkRef.current) rightSparkRef.current.position.set(sparkX, sparkY, 0.007);
+    // Desired iris center follows look scaled down
+    let ix = ox * 0.6;
+    let iy = oy * 0.6;
+    const ilen = Math.hypot(ix, iy) || 1;
+    if (ilen > maxIrisOffset && ilen > 0) {
+      const k = maxIrisOffset / ilen;
+      ix *= k;
+      iy *= k;
+    }
+
+    // Pupil stays centered on iris but clamped within iris interior
+    let px = ix;
+    let py = iy;
+    const plen = Math.hypot(px, py) || 1;
+    if (plen > maxPupilOffset && plen > 0) {
+      const k = maxPupilOffset / plen;
+      px *= k;
+      py *= k;
+    }
+
+    if (leftIrisRef.current) leftIrisRef.current.position.set(ix, iy, 0.003);
+    if (rightIrisRef.current) rightIrisRef.current.position.set(ix, iy, 0.003);
+    if (leftPupilRef.current) leftPupilRef.current.position.set(px, py, 0.005);
+    if (rightPupilRef.current) rightPupilRef.current.position.set(px, py, 0.005);
+
+    // Spark highlight: keep near top-right of iris and inside white
+    let hx = ix + 0.02;
+    let hy = iy + 0.03;
+    const sLen = Math.hypot(hx, hy) || 1;
+    const maxSpark = Math.max(whiteR - 0.02, 0.0);
+    if (sLen > maxSpark && sLen > 0) {
+      const k = maxSpark / sLen;
+      hx *= k;
+      hy *= k;
+    }
+    if (leftSparkRef.current) leftSparkRef.current.position.set(hx, hy, 0.007);
+    if (rightSparkRef.current) rightSparkRef.current.position.set(hx, hy, 0.007);
   });
 
   return (

@@ -13,7 +13,7 @@ export default function Plane({ rotation, args = [300, 300], ...rest }: PlanePro
     ...rest,
   }));
   return (
-    <mesh receiveShadow ref={ref}>
+    <mesh receiveShadow castShadow ref={ref}>
       <planeGeometry args={args} />
       <meshStandardMaterial color="#f0f0f0" />
     </mesh>

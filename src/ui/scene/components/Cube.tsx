@@ -4,9 +4,13 @@ import { useBox } from "@react-three/cannon";
 import { Html } from "@react-three/drei";
 import { Select } from "@react-three/postprocessing";
 import type { Triplet } from "@react-three/cannon";
-import { Color, Euler, Quaternion, Vector3 } from "three";
+import { Color, Euler, Quaternion, Vector3, Plane, MathUtils } from "three";
+import type { MeshStandardMaterial } from "three";
+
 import { BubbleEyes, DotEyes } from "../objects";
 import { computeVisualTargets } from "../visual/visualState";
+import type { Personality } from "../visual/visualState";
+
 import "../../styles/ThoughtBubble.css";
 
 export interface CubeProps {
@@ -15,6 +19,8 @@ export interface CubeProps {
   hopSignal?: number;
   auto?: boolean;
   eyeStyle?: "bubble" | "dot";
+  personality?: Personality;
+  learningPulseSignal?: number; // increment to trigger a learning pulse
   onSelect?: (id: string) => void;
   position?: Triplet;
   [key: string]: unknown;
@@ -27,6 +33,7 @@ export default function Cube({
   auto = true,
   eyeStyle = "bubble",
   personality = "calm",
+  learningPulseSignal = 0,
   onSelect,
   ...props
 }: CubeProps) {
@@ -60,6 +67,11 @@ export default function Cube({
   const tmpQ = useRef(new Quaternion());
   const tmpEuler = useRef(new Euler(0, 0, 0, "YXZ"));
   const tmpUp = useRef(new Vector3());
+  const tmpPlane = useRef(new Plane());
+  const tmpV1 = useRef(new Vector3());
+  const tmpV2 = useRef(new Vector3());
+  const tmpV3 = useRef(new Vector3());
+  const tmpScale = useRef(new Vector3());
 
   // Eyes targets derived from thought
   const { eyeTargetScale, eyeTargetLook } = useMemo(() => {
@@ -78,17 +90,43 @@ export default function Cube({
 
     switch (mood) {
       case "prep":
-        return { eyeTargetScale: [1.2, 0.65] as [number, number], eyeTargetLook: [0, -0.04] as [number, number] };
+        return {
+          eyeTargetScale: [1.2, 0.65] as [number, number],
+          eyeTargetLook: [0, -0.04] as [number, number],
+        };
       case "air":
-        return { eyeTargetScale: [1.3, 1.3] as [number, number], eyeTargetLook: [0, 0.08] as [number, number] };
+        return {
+          eyeTargetScale: [1.3, 1.3] as [number, number],
+          eyeTargetLook: [0, 0.08] as [number, number],
+        };
       case "land":
-        return { eyeTargetScale: [1.4, 0.5] as [number, number], eyeTargetLook: [0.02, -0.06] as [number, number] };
+        return {
+          eyeTargetScale: [1.4, 0.5] as [number, number],
+          eyeTargetLook: [0.02, -0.06] as [number, number],
+        };
       case "curious":
-        return { eyeTargetScale: [1.05, 1] as [number, number], eyeTargetLook: [0.08, 0] as [number, number] };
+        return {
+          eyeTargetScale: [1.05, 1] as [number, number],
+          eyeTargetLook: [0.08, 0] as [number, number],
+        };
       default:
-        return { eyeTargetScale: [1, 1] as [number, number], eyeTargetLook: [0, 0] as [number, number] };
+        return {
+          eyeTargetScale: [1, 1] as [number, number],
+          eyeTargetLook: [0, 0] as [number, number],
+        };
     }
   }, [thought]);
+
+  // Material & learning pulse
+  const materialRef = useRef<MeshStandardMaterial | null>(null);
+  const lastLearningPulse = useRef(learningPulseSignal);
+  const pulseStrength = useRef(0); // decays from 1 to 0
+
+  // Hover eye-look offset computed from pointer
+  const hoverLook = useRef<[number, number]>([0, 0]);
+  const [hoverLookState, setHoverLookState] = useState<[number, number]>([
+    0, 0,
+  ]);
 
   useEffect(() => {
     const unsubPos = api.position.subscribe(([, y]) => {
@@ -115,6 +153,12 @@ export default function Cube({
 
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
+
+    // Detect learning pulse signal edges
+    if (learningPulseSignal !== lastLearningPulse.current) {
+      lastLearningPulse.current = learningPulseSignal;
+      pulseStrength.current = 1;
+    }
 
     if (!auto) {
       if (
@@ -171,12 +215,29 @@ export default function Cube({
 
     // Idle breathing and confusion jitter overlays (visual-only, small)
     if (phase.current === "idle" && ref.current) {
-      const vis = computeVisualTargets(thought, personality as any, selected, hovered);
+      const vis = computeVisualTargets(
+        thought,
+        personality ?? "calm",
+        selected,
+        hovered
+      );
       const breath = 1 + vis.breathAmp * Math.sin(t * 1.6);
-      const jitter = vis.jitterAmp ? vis.jitterAmp * (Math.sin(t * 20 + (id.charCodeAt(0) % 10)) * 0.5) : 0;
+      const jitter = vis.jitterAmp
+        ? vis.jitterAmp * (Math.sin(t * 20 + (id.charCodeAt(0) % 10)) * 0.5)
+        : 0;
       ref.current.scale.y *= breath;
       ref.current.scale.x *= 1 - jitter * 0.5;
       ref.current.scale.z *= 1 + jitter * 0.5;
+    }
+
+    // Apply learning pulse overlay to scale (uniform) and material emissive
+    if (pulseStrength.current > 0.001 && ref.current) {
+      const mult = 1 + 0.08 * pulseStrength.current;
+      ref.current.scale.multiplyScalar(mult);
+      // decay
+      pulseStrength.current *= Math.exp(-delta * 6);
+    } else if (pulseStrength.current <= 0.001) {
+      pulseStrength.current = 0;
     }
 
     // Eyes handled by eyes components now
@@ -249,6 +310,24 @@ export default function Cube({
         uprightTarget.current = null;
       }
     }
+    // Update material from visual targets each frame, including pulse emissive boost
+    if (materialRef.current) {
+      const vis = computeVisualTargets(
+        thought,
+        personality ?? "calm",
+        selected,
+        hovered
+      );
+      materialRef.current.color.set(vis.color);
+      materialRef.current.emissive.set(
+        new Color(vis.color).multiplyScalar(0.4)
+      );
+      const pulseEmissiveBoost = 0.4 * pulseStrength.current;
+      materialRef.current.emissiveIntensity =
+        vis.emissiveIntensity + pulseEmissiveBoost;
+      materialRef.current.roughness = vis.roughness;
+      materialRef.current.metalness = vis.metalness;
+    }
   });
 
   useEffect(() => {
@@ -272,32 +351,72 @@ export default function Cube({
         castShadow
         ref={ref}
         onPointerOver={() => setHovered(true)}
-        onPointerOut={() => setHovered(false)}
+        onPointerOut={() => {
+          setHovered(false);
+          hoverLook.current = [0, 0];
+          setHoverLookState([0, 0]);
+        }}
+        onPointerMove={(e) => {
+          const obj = ref.current;
+          if (!obj) return;
+          const worldQuat = obj.getWorldQuaternion(tmpQ.current);
+          obj.getWorldScale(tmpScale.current);
+          const hz = 0.5 * tmpScale.current.z + 0.001;
+          const planePoint = obj.localToWorld(tmpV1.current.set(0, 0, hz));
+          const forward = tmpV2.current
+            .set(0, 0, 1)
+            .applyQuaternion(worldQuat)
+            .normalize();
+          tmpPlane.current.setFromNormalAndCoplanarPoint(forward, planePoint);
+          const hit = e.ray.intersectPlane(tmpPlane.current, tmpV3.current);
+          if (hit) {
+            const local = obj.worldToLocal(tmpV3.current.clone());
+            const hx = Math.max(0.5 * tmpScale.current.x, 0.0001);
+            const hy = Math.max(0.5 * tmpScale.current.y, 0.0001);
+            const lx = MathUtils.clamp(local.x / hx, -1, 1) * 0.12;
+            const ly = MathUtils.clamp(local.y / hy, -1, 1) * 0.12;
+            hoverLook.current = [lx, ly];
+            setHoverLookState([lx, ly]);
+          }
+        }}
         onClick={(e) => {
           e.stopPropagation();
           onSelect?.(id);
         }}
       >
         <boxGeometry />
+        <meshStandardMaterial
+          ref={materialRef}
+          color="#888888"
+          emissiveIntensity={0.1}
+          roughness={0.6}
+          metalness={0.1}
+        />
+
+        {/* Eyes on +Z face */}
         {(() => {
-          const vis = computeVisualTargets(thought, personality as any, selected, hovered);
-          return (
-            <meshStandardMaterial
-              color={vis.color}
-              emissive={new Color(vis.color).multiplyScalar(0.4)}
-              emissiveIntensity={vis.emissiveIntensity}
-              roughness={vis.roughness}
-              metalness={vis.metalness}
+          // Combine mood-based look with hover look when hovered
+          const finalLook: [number, number] = [
+            eyeTargetLook[0] + (hovered ? hoverLookState[0] : 0),
+            eyeTargetLook[1] + (hovered ? hoverLookState[1] : 0),
+          ];
+          // Clamp combined look to a safe cute range
+          finalLook[0] = MathUtils.clamp(finalLook[0], -0.12, 0.12);
+          finalLook[1] = MathUtils.clamp(finalLook[1], -0.12, 0.12);
+          return eyeStyle === "bubble" ? (
+            <BubbleEyes
+              position={[0, 0.12, 0.51]}
+              look={finalLook}
+              eyeScale={eyeTargetScale}
+            />
+          ) : (
+            <DotEyes
+              position={[0, 0.12, 0.51]}
+              look={finalLook}
+              eyeScale={eyeTargetScale}
             />
           );
         })()}
-
-        {/* Eyes on +Z face */}
-        {eyeStyle === "bubble" ? (
-          <BubbleEyes position={[0, 0.12, 0.51]} look={eyeTargetLook} eyeScale={eyeTargetScale} />
-        ) : (
-          <DotEyes position={[0, 0.12, 0.51]} look={eyeTargetLook} eyeScale={eyeTargetScale} />
-        )}
 
         <Html position={[0, 1.4, 0]} occlude={true} transform sprite>
           <div
