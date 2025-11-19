@@ -74,3 +74,27 @@ export const ToggleButton = styled.button<{ $active: boolean }>`
     cursor: not-allowed;
   }
 `;
+
+export const ResetButton = styled.button`
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: rgba(244, 67, 54, 0.15);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  border-radius: 8px;
+  color: #ff6b6b;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(244, 67, 54, 0.25);
+    border-color: #f44336;
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+`;

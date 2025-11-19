@@ -1,9 +1,12 @@
 import type { CubeData } from "../ui/components/CubeList";
+import type { PublicCubeState } from "../ui/scene/systems/Community";
 
 const STORAGE_KEY = "creativedev.cubes";
+const DYNAMIC_STATE_KEY = "creativedev.cubes.dynamicState";
 
 /**
  * Load cubes from localStorage or return default configuration
+ * Also merges with dynamic states (position, learning, knowledge)
  */
 export function loadCubesFromStorage(): CubeData[] {
   try {
@@ -11,7 +14,9 @@ export function loadCubesFromStorage(): CubeData[] {
     if (stored) {
       const parsed = JSON.parse(stored);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        // Load and merge dynamic states
+        const dynamicStates = loadDynamicStates();
+        return mergeCubeStates(parsed, dynamicStates);
       }
     }
   } catch (error) {
@@ -77,6 +82,62 @@ export function isFirstTimeUser(): boolean {
  */
 export function clearCubesStorage(): void {
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(DYNAMIC_STATE_KEY);
+}
+
+/**
+ * Save dynamic cube states to localStorage (position, learning, knowledge, etc.)
+ */
+export function saveDynamicStates(states: PublicCubeState[]): void {
+  try {
+    const stateMap: Record<string, PublicCubeState> = {};
+    states.forEach(state => {
+      stateMap[state.id] = state;
+    });
+    localStorage.setItem(DYNAMIC_STATE_KEY, JSON.stringify(stateMap));
+    console.log("💾 Saved dynamic states for", states.length, "cubes");
+  } catch (error) {
+    console.error("Error saving dynamic states:", error);
+  }
+}
+
+/**
+ * Load dynamic cube states from localStorage
+ */
+export function loadDynamicStates(): Record<string, PublicCubeState> {
+  try {
+    const stored = localStorage.getItem(DYNAMIC_STATE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      console.log("📂 Loaded dynamic states for", Object.keys(parsed).length, "cubes");
+      return parsed;
+    }
+  } catch (error) {
+    console.error("Error loading dynamic states:", error);
+  }
+  return {};
+}
+
+/**
+ * Merge dynamic states with static cube configuration
+ */
+export function mergeCubeStates(cubes: CubeData[], dynamicStates: Record<string, PublicCubeState>): CubeData[] {
+  return cubes.map(cube => {
+    const dynamic = dynamicStates[cube.id];
+    if (dynamic) {
+      return {
+        ...cube,
+        position: dynamic.position,
+        personality: dynamic.personality,
+        socialTrait: dynamic.socialTrait,
+        capabilities: dynamic.capabilities,
+        learningProgress: dynamic.learningProgress,
+        knowledge: dynamic.knowledge,
+        readingExperiences: dynamic.readingExperiences,
+      };
+    }
+    return cube;
+  });
 }
 
 /**

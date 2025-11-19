@@ -10,9 +10,11 @@ import {
   addCubeToStorage,
   isFirstTimeUser,
   initializeEnvironment,
+  clearCubesStorage,
 } from "../utils/cubeStorage";
 import type { CubeData } from "./components/CubeList";
 import { useCommunityCubes } from "./hooks/useCommunityStore";
+import { useCubePersistence } from "./hooks/useCubePersistence";
 import {
   analyzeIntent,
   extractConcepts,
@@ -31,6 +33,9 @@ import type { Personality } from "./components/CubeList";
 const responseCache = new Map<string, string>();
 
 function App() {
+  // Enable automatic cube state persistence
+  useCubePersistence();
+
   // Editor state - show on first load
   const [showEditor, setShowEditor] = useState(() => isFirstTimeUser());
   const [dynamicCubes, setDynamicCubes] = useState<CubeData[]>(() =>
@@ -316,6 +321,13 @@ function App() {
     [dynamicCubes]
   );
 
+  // Handler to reset all cubes
+  const handleReset = useCallback(() => {
+    clearCubesStorage();
+    // Reload page to reinitialize
+    window.location.reload();
+  }, []);
+
   return (
     <>
       <GlobalStyles />
@@ -353,6 +365,7 @@ function App() {
         onToggle={setUseAI}
         totalTokens={totalTokens}
         messageCount={messageCount}
+        onReset={handleReset}
       />
     </>
   );

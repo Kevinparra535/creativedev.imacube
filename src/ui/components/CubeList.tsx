@@ -17,6 +17,27 @@ export interface CubeData {
   auto?: boolean;
   isUserCube?: boolean; // True if this is the user's interactive cube
   position?: [number, number, number];
+  
+  // Dynamic runtime state (persisted)
+  capabilities?: {
+    navigation: boolean;
+    selfRighting: boolean;
+  };
+  learningProgress?: {
+    navigation: number;
+    selfRighting: number;
+  };
+  knowledge?: Record<string, number>;
+  readingExperiences?: {
+    originalPersonality: string;
+    emotionsExperienced: string[];
+    traitsAcquired: string[];
+    booksRead: string[];
+    currentBook?: string;
+    readingProgress?: number;
+    conceptsLearned?: string[];
+  };
+  socialTrait?: "kind" | "selfish";
 }
 
 interface CubeListProps {

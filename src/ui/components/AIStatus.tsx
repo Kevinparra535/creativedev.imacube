@@ -5,6 +5,7 @@ import {
   StatusLabel,
   StatusValue,
   ToggleButton,
+  ResetButton,
 } from "../styles/AIStatus.styles";
 
 interface AIStatusProps {
@@ -13,6 +14,7 @@ interface AIStatusProps {
   onToggle: (enabled: boolean) => void;
   totalTokens?: number;
   messageCount?: number;
+  onReset?: () => void;
 }
 
 export default function AIStatus({ 
@@ -20,10 +22,17 @@ export default function AIStatus({
   isEnabled, 
   onToggle,
   totalTokens = 0,
-  messageCount = 0
+  messageCount = 0,
+  onReset
 }: AIStatusProps) {
   // Calcular costo estimado (gpt-4o-mini: $0.15/1M input, $0.60/1M output, promedio ~$0.30/1M)
   const estimatedCost = (totalTokens / 1_000_000) * 0.30;
+
+  const handleReset = () => {
+    if (window.confirm("⚠️ ¿Estás seguro?\n\nEsto reiniciará TODOS los cubos a su estado inicial:\n• Posiciones originales\n• Conocimiento perdido\n• Libros leídos borrados\n• Emociones reiniciadas\n\n¿Continuar?")) {
+      onReset?.();
+    }
+  };
 
   return (
     <AIStatusPanel>
@@ -68,6 +77,12 @@ export default function AIStatus({
         <ToggleButton $active={false} disabled>
           Configura .env para activar
         </ToggleButton>
+      )}
+
+      {onReset && (
+        <ResetButton onClick={handleReset}>
+          🔄 Reiniciar Todo
+        </ResetButton>
       )}
     </AIStatusPanel>
   );
