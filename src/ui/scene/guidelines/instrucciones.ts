@@ -1,6 +1,6 @@
 /**
  * instrucciones.ts
- * 
+ *
  * Directrices centrales para personalidad, emociones, conocimiento y libros.
  * Define cómo cada personalidad prioriza la atención, cómo se aburre,
  * qué cambios produce cada libro (emociones + conocimiento) y cómo
@@ -56,7 +56,10 @@ export interface PersonalityDirective {
   emotionBias?: Partial<Record<EmotionCore, number>>; // sesgo emocional base
 }
 
-export const DIRECTIVES_BY_PERSONALITY: Record<Personality, PersonalityDirective> = {
+export const DIRECTIVES_BY_PERSONALITY: Record<
+  Personality,
+  PersonalityDirective
+> = {
   calm: {
     attentionWeights: { book: 0.7, zone: 0.8, cube: 0.3, ambient: 0.2 },
     boredomMultiplier: 1.2,
@@ -105,7 +108,10 @@ export interface BookSpec {
 }
 
 // Efectos por dominio (defaults) — se pueden sobreescribir por libro.
-export const DEFAULT_BOOK_EFFECTS: Record<KnowledgeDomain, Omit<BookSpec, "domain">> = {
+export const DEFAULT_BOOK_EFFECTS: Record<
+  KnowledgeDomain,
+  Omit<BookSpec, "domain">
+> = {
   science: { affect: { emotion: "curious", knowledgeGain: 2 } },
   technology: { affect: { emotion: "curious", knowledgeGain: 2 } },
   math: { affect: { emotion: "curious", knowledgeGain: 2 } },
@@ -164,7 +170,10 @@ export function applyBookEffects(
 
   // Knowledge update
   const gain = scaleByDifficulty(affect.knowledgeGain, book.difficulty);
-  const knowledge: KnowledgeState = { ...prev, [book.domain]: prev[book.domain] + gain } as KnowledgeState;
+  const knowledge: KnowledgeState = {
+    ...prev,
+    [book.domain]: prev[book.domain] + gain,
+  } as KnowledgeState;
 
   // Emotion
   const emotionBaseIntensity = clamp01(0.4 + gain * 0.1);
@@ -177,7 +186,8 @@ export function applyBookEffects(
   if (affect.personalityDrift) {
     for (const key in affect.personalityDrift) {
       const p = key as Personality;
-      personalityCounters[p] = (personalityCounters[p] || 0) + (affect.personalityDrift[p] || 0);
+      personalityCounters[p] =
+        (personalityCounters[p] || 0) + (affect.personalityDrift[p] || 0);
     }
   }
 
@@ -200,7 +210,10 @@ export function applyBookEffects(
 // UTILIDADES
 // ────────────────────────────────────────────────────────────────
 
-function scaleByDifficulty(base: number, difficulty: BookSpec["difficulty"]): number {
+function scaleByDifficulty(
+  base: number,
+  difficulty: BookSpec["difficulty"]
+): number {
   switch (difficulty) {
     case "basic":
       return base * 0.8;

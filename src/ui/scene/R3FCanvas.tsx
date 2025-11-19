@@ -166,7 +166,9 @@ export default function R3FCanvas({
                   allCubeIds={allCubeIds}
                   ambientZones={ambientZones}
                   conversationMessage={
-                    selectedId === cube.id && conversationMessage ? conversationMessage : undefined
+                    selectedId === cube.id && conversationMessage
+                      ? conversationMessage
+                      : undefined
                   }
                   conversationTimestamp={
                     selectedId === cube.id ? conversationTimestamp : undefined

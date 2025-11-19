@@ -53,7 +53,11 @@ interface CubeFooterProps {
   onSelect: (id: string) => void;
 }
 
-export default function CubeFooter({ cubes, selectedId, onSelect }: CubeFooterProps) {
+export default function CubeFooter({
+  cubes,
+  selectedId,
+  onSelect,
+}: CubeFooterProps) {
   const selectedCube = useMemo(
     () => cubes.find((c) => c.id === selectedId),
     [cubes, selectedId]
@@ -72,26 +76,28 @@ export default function CubeFooter({ cubes, selectedId, onSelect }: CubeFooterPr
     const edges: Edge[] = [];
 
     // Central cube node with personality change indicator
-    const hasChangedPersonality = selectedCube.readingExperiences && 
-      selectedCube.readingExperiences.originalPersonality !== selectedCube.personality;
-    
+    const hasChangedPersonality =
+      selectedCube.readingExperiences &&
+      selectedCube.readingExperiences.originalPersonality !==
+        selectedCube.personality;
+
     const cubeName = selectedCube.name || selectedCube.id;
-    
+
     const cubeNode: FlowNode = {
       id: "cube",
       type: "default",
       position: { x: 400, y: 150 },
       data: {
-        label: hasChangedPersonality 
+        label: hasChangedPersonality
           ? `${cubeName}\n${selectedCube.readingExperiences!.originalPersonality} → ${selectedCube.personality}`
           : `${cubeName} - ${selectedCube.personality}`,
       },
       style: {
-        background: hasChangedPersonality 
-          ? "rgba(255, 170, 0, 0.3)" 
+        background: hasChangedPersonality
+          ? "rgba(255, 170, 0, 0.3)"
           : "rgba(102, 179, 255, 0.2)",
-        border: hasChangedPersonality 
-          ? "2px solid #ffaa00" 
+        border: hasChangedPersonality
+          ? "2px solid #ffaa00"
           : "2px solid #66b3ff",
         borderRadius: "8px",
         padding: "10px 20px",
@@ -240,7 +246,7 @@ export default function CubeFooter({ cubes, selectedId, onSelect }: CubeFooterPr
     // Knowledge nodes with progress
     const navProgress = selectedCube.learningProgress?.navigation ?? 0;
     const selfProgress = selectedCube.learningProgress?.selfRighting ?? 0;
-    
+
     const knowledgeData: Array<{
       label: string;
       active: boolean;
@@ -260,7 +266,11 @@ export default function CubeFooter({ cubes, selectedId, onSelect }: CubeFooterPr
         progress: navProgress,
         learning: navProgress > 0 && navProgress < 1,
       },
-      { label: "Expresión facial", active: selectedCube.eyeStyle === "bubble", progress: 1 },
+      {
+        label: "Expresión facial",
+        active: selectedCube.eyeStyle === "bubble",
+        progress: 1,
+      },
       { label: "Interacción social", active: true, progress: 1 },
       { label: "Aprendizaje activo", active: true, progress: 1 },
     ];
@@ -269,7 +279,7 @@ export default function CubeFooter({ cubes, selectedId, onSelect }: CubeFooterPr
       const id = `knowledge-${nodeId++}`;
       const progress = knowledge.progress ?? 1;
       const learning = knowledge.learning ?? false;
-      
+
       nodes.push({
         id,
         type: "default",
@@ -282,13 +292,13 @@ export default function CubeFooter({ cubes, selectedId, onSelect }: CubeFooterPr
           background: learning
             ? `linear-gradient(to right, rgba(102, 179, 255, 0.25) ${progress * 100}%, rgba(40, 40, 50, 0.6) ${progress * 100}%)`
             : knowledge.active
-            ? "rgba(102, 179, 255, 0.15)"
-            : "rgba(40, 40, 50, 0.6)",
+              ? "rgba(102, 179, 255, 0.15)"
+              : "rgba(40, 40, 50, 0.6)",
           border: learning
             ? "1px solid #ffaa00"
             : knowledge.active
-            ? "1px solid #66b3ff"
-            : "1px solid rgba(255, 255, 255, 0.1)",
+              ? "1px solid #66b3ff"
+              : "1px solid rgba(255, 255, 255, 0.1)",
           borderRadius: "6px",
           padding: "8px 12px",
           color: knowledge.active || learning ? "#fff" : "#999",
@@ -508,32 +518,32 @@ export default function CubeFooter({ cubes, selectedId, onSelect }: CubeFooterPr
       <CubeList cubes={cubes} selectedId={selectedId} onSelect={onSelect} />
       {selectedCube ? (
         <FlowContainer>
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          fitView
-          attributionPosition="bottom-left"
-        >
-          <Background color="#444" gap={16} />
-          <Controls />
-          <MiniMap
-            nodeColor={(node) => {
-              const border = node.style?.border;
-              return typeof border === "string" && border.includes("#66b3ff")
-                ? "#66b3ff"
-                : "#666";
-            }}
-            maskColor="rgba(20, 20, 30, 0.8)"
-          />
-          <Panel position="top-left">
-            <PanelTitle>
-              {selectedCube.id} - {selectedCube.personality}
-            </PanelTitle>
-          </Panel>
-        </ReactFlow>
-      </FlowContainer>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            fitView
+            attributionPosition="bottom-left"
+          >
+            <Background color="#444" gap={16} />
+            <Controls />
+            <MiniMap
+              nodeColor={(node) => {
+                const border = node.style?.border;
+                return typeof border === "string" && border.includes("#66b3ff")
+                  ? "#66b3ff"
+                  : "#666";
+              }}
+              maskColor="rgba(20, 20, 30, 0.8)"
+            />
+            <Panel position="top-left">
+              <PanelTitle>
+                {selectedCube.id} - {selectedCube.personality}
+              </PanelTitle>
+            </Panel>
+          </ReactFlow>
+        </FlowContainer>
       ) : (
         <EmptyState>
           <p>Selecciona un cubo para ver su información</p>

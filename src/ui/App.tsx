@@ -5,11 +5,11 @@ import CubeFooter from "./components/CubeFooter";
 import CubeInteraction from "./components/CubeInteraction";
 import AIStatus from "./components/AIStatus";
 import { CubeEditor } from "./components/CubeEditor";
-import { 
-  loadCubesFromStorage, 
-  addCubeToStorage, 
+import {
+  loadCubesFromStorage,
+  addCubeToStorage,
   isFirstTimeUser,
-  initializeEnvironment 
+  initializeEnvironment,
 } from "../utils/cubeStorage";
 import type { CubeData } from "./components/CubeList";
 import { useCommunityCubes } from "./hooks/useCommunityStore";
@@ -33,70 +33,77 @@ const responseCache = new Map<string, string>();
 function App() {
   // Editor state - show on first load
   const [showEditor, setShowEditor] = useState(() => isFirstTimeUser());
-  const [dynamicCubes, setDynamicCubes] = useState<CubeData[]>(() => loadCubesFromStorage());
-  
+  const [dynamicCubes, setDynamicCubes] = useState<CubeData[]>(() =>
+    loadCubesFromStorage()
+  );
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [cameraLocked, setCameraLocked] = useState(true);
   const [cubeResponse, setCubeResponse] = useState<string | null>(null);
   const [isThinking, setIsThinking] = useState(false);
   const [conversationTimestamp, setConversationTimestamp] = useState(0); // For triggering cube reactions
-  
+
   // Persistir preferencia de AI en localStorage
   const [useAI, setUseAI] = useState(() => {
-    const saved = localStorage.getItem('useAI');
+    const saved = localStorage.getItem("useAI");
     return saved ? JSON.parse(saved) : false;
   });
-  
+
   const [aiConfigured, setAiConfigured] = useState(false);
-  
+
   // Tracking de uso y costos
   const [totalTokens, setTotalTokens] = useState(() => {
-    const saved = localStorage.getItem('totalTokens');
+    const saved = localStorage.getItem("totalTokens");
     return saved ? parseInt(saved, 10) : 0;
   });
-  
+
   const [messageCount, setMessageCount] = useState(() => {
-    const saved = localStorage.getItem('messageCount');
+    const saved = localStorage.getItem("messageCount");
     return saved ? parseInt(saved, 10) : 0;
   });
-  
+
   // Handle cube creation from editor
-  const handleCreateCube = useCallback((cubeData: {
-    name: string;
-    color: string;
-    eyeStyle: "bubble" | "dot";
-    personality: Personality;
-  }) => {
-    const newCube = addCubeToStorage(cubeData);
-    
-    // Initialize environment with NPC cubes after user creates their first cube
-    initializeEnvironment();
-    
-    // Reload all cubes (including NPCs)
-    const allCubes = loadCubesFromStorage();
-    setDynamicCubes(allCubes);
-    setShowEditor(false);
-    
-    // Auto-select the user's cube
-    setSelectedId(newCube.id);
-  }, []);
-  
+  const handleCreateCube = useCallback(
+    (cubeData: {
+      name: string;
+      color: string;
+      eyeStyle: "bubble" | "dot";
+      personality: Personality;
+    }) => {
+      const newCube = addCubeToStorage(cubeData);
+
+      // Initialize environment with NPC cubes after user creates their first cube
+      initializeEnvironment();
+
+      // Reload all cubes (including NPCs)
+      const allCubes = loadCubesFromStorage();
+      setDynamicCubes(allCubes);
+      setShowEditor(false);
+
+      // Auto-select the user's cube
+      setSelectedId(newCube.id);
+    },
+    []
+  );
+
   // Rate limiting
   const lastMessageTimeRef = useRef(0);
   const MIN_MESSAGE_INTERVAL = 1000; // 1 segundo
-  
-  const visualEffectsRef = useRef<Map<string, ReturnType<typeof generateVisualEffects>>>(new Map());
+
+  const visualEffectsRef = useRef<
+    Map<string, ReturnType<typeof generateVisualEffects>>
+  >(new Map());
   const live = useCommunityCubes();
 
   // Persistir preferencia de AI
   useEffect(() => {
-    localStorage.setItem('useAI', JSON.stringify(useAI));
+    localStorage.setItem("useAI", JSON.stringify(useAI));
   }, [useAI]);
 
   // Persistir tracking de uso
   useEffect(() => {
-    localStorage.setItem('totalTokens', totalTokens.toString());
-    localStorage.setItem('messageCount', messageCount.toString());
+    localStorage.setItem("totalTokens", totalTokens.toString());
+    localStorage.setItem("messageCount", messageCount.toString());
   }, [totalTokens, messageCount]);
 
   // Inicializar OpenAI si está configurado
@@ -118,7 +125,9 @@ function App() {
         setAiConfigured(false);
       }
     } else {
-      console.log("ℹ️ OpenAI no configurado. Usando respuestas template-based.");
+      console.log(
+        "ℹ️ OpenAI no configurado. Usando respuestas template-based."
+      );
       setUseAI(false);
       setAiConfigured(false);
     }
@@ -140,14 +149,20 @@ function App() {
 
   // Retry logic con exponential backoff
   const retryWithBackoff = useCallback(
-    async <T,>(fn: () => Promise<T>, maxRetries = 3, delay = 1000): Promise<T> => {
+    async <T,>(
+      fn: () => Promise<T>,
+      maxRetries = 3,
+      delay = 1000
+    ): Promise<T> => {
       for (let i = 0; i < maxRetries; i++) {
         try {
           return await fn();
         } catch (error) {
           if (i === maxRetries - 1) throw error;
           const backoffDelay = delay * Math.pow(2, i);
-          console.log(`⏳ Retry ${i + 1}/${maxRetries} en ${backoffDelay}ms...`);
+          console.log(
+            `⏳ Retry ${i + 1}/${maxRetries} en ${backoffDelay}ms...`
+          );
           await new Promise((resolve) => setTimeout(resolve, backoffDelay));
         }
       }
@@ -198,7 +213,7 @@ function App() {
         // 5a. Intentar usar OpenAI si está disponible
         if (useAI && isOpenAIInitialized()) {
           const aiService = getOpenAIService();
-          
+
           // Retry con backoff
           const aiResponse = await retryWithBackoff(async () => {
             return await aiService.generateResponse(
@@ -213,12 +228,12 @@ function App() {
 
           if (aiResponse.success && aiResponse.response) {
             response = aiResponse.response;
-            
+
             // Track tokens y costos
             const tokensUsed = aiResponse.usage?.totalTokens || 0;
             setTotalTokens((prev) => prev + tokensUsed);
             setMessageCount((prev) => prev + 1);
-            
+
             console.log("🤖 Respuesta de OpenAI:", {
               tokens: tokensUsed,
               total: totalTokens + tokensUsed,
@@ -228,14 +243,26 @@ function App() {
           }
         } else {
           // 5b. Fallback a respuestas template-based
-          response = generateResponse(message, intent, concepts, personality, cubeName);
+          response = generateResponse(
+            message,
+            intent,
+            concepts,
+            personality,
+            cubeName
+          );
           setMessageCount((prev) => prev + 1);
           console.log("📝 Respuesta template-based");
         }
       } catch (error) {
         console.error("❌ Error generando respuesta:", error);
         // Fallback a template si OpenAI falla
-        response = generateResponse(message, intent, concepts, personality, cubeName);
+        response = generateResponse(
+          message,
+          intent,
+          concepts,
+          personality,
+          cubeName
+        );
         setMessageCount((prev) => prev + 1);
       }
 
@@ -266,26 +293,29 @@ function App() {
   );
 
   // Handler to restrict selection to user's cube only
-  const handleCubeSelect = useCallback((id: string) => {
-    const cube = dynamicCubes.find(c => c.id === id);
-    // Only allow selection of user's cube
-    if (cube && cube.isUserCube) {
-      setSelectedId(id);
-    } else {
-      // Deselect if clicking on NPC cube
-      setSelectedId(null);
-    }
-  }, [dynamicCubes]);
+  const handleCubeSelect = useCallback(
+    (id: string) => {
+      const cube = dynamicCubes.find((c) => c.id === id);
+      // Only allow selection of user's cube
+      if (cube && cube.isUserCube) {
+        setSelectedId(id);
+      } else {
+        // Deselect if clicking on NPC cube
+        setSelectedId(null);
+      }
+    },
+    [dynamicCubes]
+  );
 
   return (
     <>
       <GlobalStyles />
       {showEditor && <CubeEditor onCreateCube={handleCreateCube} />}
-      <R3FCanvas 
+      <R3FCanvas
         cubes={dynamicCubes}
-        selectedId={selectedId} 
-        onSelect={handleCubeSelect} 
-        cameraLocked={cameraLocked} 
+        selectedId={selectedId}
+        onSelect={handleCubeSelect}
+        cameraLocked={cameraLocked}
         onCameraLockChange={setCameraLocked}
         conversationMessage={cubeResponse}
         conversationTimestamp={conversationTimestamp}
@@ -294,16 +324,22 @@ function App() {
         key={selectedId} // Reset component when cube changes
         cubeId={selectedId}
         cubeName={cubesLive.find((c) => c.id === selectedId)?.name ?? ""}
-        cubePersonality={cubesLive.find((c) => c.id === selectedId)?.personality ?? "neutral"}
+        cubePersonality={
+          cubesLive.find((c) => c.id === selectedId)?.personality ?? "neutral"
+        }
         onSendMessage={handleUserMessage}
         cubeResponse={cubeResponse}
         isThinking={isThinking}
         cameraLocked={cameraLocked}
       />
-      <CubeFooter cubes={cubesLive} selectedId={selectedId} onSelect={handleCubeSelect} />
-      <AIStatus 
-        isConfigured={aiConfigured} 
-        isEnabled={useAI} 
+      <CubeFooter
+        cubes={cubesLive}
+        selectedId={selectedId}
+        onSelect={handleCubeSelect}
+      />
+      <AIStatus
+        isConfigured={aiConfigured}
+        isEnabled={useAI}
         onToggle={setUseAI}
         totalTokens={totalTokens}
         messageCount={messageCount}
