@@ -63,11 +63,6 @@ export default function CubeFooter({
     [cubes, selectedId]
   );
 
-  // Only show footer for user's cube
-  if (!selectedCube || !selectedCube.isUserCube) {
-    return null;
-  }
-
   // Build nodes and edges for ReactFlow
   const { nodes, edges } = useMemo(() => {
     if (!selectedCube) return { nodes: [], edges: [] };

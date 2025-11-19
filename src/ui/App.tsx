@@ -292,15 +292,24 @@ function App() {
     [selectedId, cubesLive, useAI, retryWithBackoff, totalTokens]
   );
 
-  // Handler to restrict selection to user's cube only
+  // Handler to select any cube (user or NPC)
   const handleCubeSelect = useCallback(
     (id: string) => {
+      console.log("🖱️ handleCubeSelect called with:", id);
+      
+      // If empty string or no id, deselect
+      if (!id || id === "") {
+        console.log("⬜ Deselecting cube");
+        setSelectedId(null);
+        return;
+      }
+      
       const cube = dynamicCubes.find((c) => c.id === id);
-      // Only allow selection of user's cube
-      if (cube && cube.isUserCube) {
+      if (cube) {
+        console.log("✅ Selecting cube:", cube.id, cube.name);
         setSelectedId(id);
       } else {
-        // Deselect if clicking on NPC cube
+        console.log("❌ Cube not found:", id);
         setSelectedId(null);
       }
     },
@@ -331,6 +340,7 @@ function App() {
         cubeResponse={cubeResponse}
         isThinking={isThinking}
         cameraLocked={cameraLocked}
+        isUserCube={cubesLive.find((c) => c.id === selectedId)?.isUserCube ?? false}
       />
       <CubeFooter
         cubes={cubesLive}

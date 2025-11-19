@@ -29,18 +29,18 @@ export default function CubeList({
   selectedId,
   onSelect,
 }: CubeListProps) {
-  // Only show the user's cube in the tabs
-  const userCubes = cubes.filter((cube) => cube.isUserCube);
-  
   return (
     <TabsContainer>
-      {userCubes.map((cube) => (
+      {cubes.map((cube) => (
         <CubeTab
           key={cube.id}
           $selected={selectedId === cube.id}
           onClick={() => onSelect(cube.id)}
         >
-          <TabId>{cube.name || cube.id}</TabId>
+          <TabId>
+            {cube.isUserCube && "👤 "}
+            {cube.name || cube.id}
+          </TabId>
           {/* <TabPersonality>{cube.personality || "neutral"}</TabPersonality> */}
         </CubeTab>
       ))}

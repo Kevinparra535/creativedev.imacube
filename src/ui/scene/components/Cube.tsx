@@ -1473,6 +1473,7 @@ export default function Cube({
         }}
         onClick={(e) => {
           e.stopPropagation();
+          console.log("🎯 Cube clicked:", id);
           onSelect?.(id);
         }}
       >

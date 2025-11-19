@@ -148,7 +148,10 @@ export default function R3FCanvas({
               />
             </EffectComposer>
 
-            <group onPointerMissed={() => onSelect("")}>
+            <group onPointerMissed={() => {
+              console.log("⬜ Clicked on empty space");
+              onSelect("");
+            }}>
               {cubes.map((cube) => (
                 <Cube
                   key={cube.id}

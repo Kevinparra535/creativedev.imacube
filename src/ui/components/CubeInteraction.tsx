@@ -25,6 +25,7 @@ interface CubeInteractionProps {
   cubeResponse: string | null;
   isThinking: boolean;
   cameraLocked?: boolean;
+  isUserCube?: boolean;
 }
 
 export { type CubeInteractionProps };
@@ -37,6 +38,7 @@ export default function CubeInteraction({
   cubeResponse,
   isThinking,
   cameraLocked,
+  isUserCube = false,
 }: CubeInteractionProps) {
   const [inputValue, setInputValue] = useState("");
   const [conversation, setConversation] = useState<
@@ -121,7 +123,10 @@ export default function CubeInteraction({
       ],
     };
 
-    return suggestionsByPersonality[cubePersonality.toLowerCase()] || suggestionsByPersonality.neutral;
+    return (
+      suggestionsByPersonality[cubePersonality.toLowerCase()] ||
+      suggestionsByPersonality.neutral
+    );
   };
 
   const handleSuggestionClick = (suggestion: string) => {
@@ -132,6 +137,19 @@ export default function CubeInteraction({
     return (
       <InteractionPanel>
         <EmptyState>Selecciona un cubo para interactuar</EmptyState>
+      </InteractionPanel>
+    );
+  }
+
+  // Only allow interaction with user's cube
+  if (!isUserCube) {
+    return (
+      <InteractionPanel>
+        <EmptyState>
+          Este es un NPC autónomo.
+          <br />
+          Solo puedes conversar con tu propio cubo.
+        </EmptyState>
       </InteractionPanel>
     );
   }
@@ -168,7 +186,9 @@ export default function CubeInteraction({
       {cubeId && (
         <CameraHint $locked={cameraLocked ?? true}>
           {cameraLocked ? "🔒 Cámara bloqueada" : "🔓 Cámara libre"}
-          <span>Presiona TAB para {cameraLocked ? "desbloquear" : "bloquear"}</span>
+          <span>
+            Presiona TAB para {cameraLocked ? "desbloquear" : "bloquear"}
+          </span>
         </CameraHint>
       )}
 

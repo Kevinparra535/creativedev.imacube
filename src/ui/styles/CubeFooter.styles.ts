@@ -10,11 +10,12 @@ export const Footer = styled.footer`
   backdrop-filter: blur(10px);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   color: #e0e0e0;
-  z-index: 1000;
+  z-index: 10; /* Below canvas (100) but interactive */
   font-family: system-ui, -apple-system, sans-serif;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  pointer-events: auto; /* Footer captures mouse events */
 `;
 
 export const FlowContainer = styled.div`

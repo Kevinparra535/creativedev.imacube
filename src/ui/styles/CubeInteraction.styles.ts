@@ -12,8 +12,9 @@ export const InteractionPanel = styled.div`
   color: #e0e0e0;
   display: flex;
   flex-direction: column;
-  z-index: 1000;
+  z-index: 10; /* Below canvas (100) but interactive */
   font-family: system-ui, -apple-system, sans-serif;
+  pointer-events: auto; /* Panel captures mouse events */
 `;
 
 export const ConversationLog = styled.div`

@@ -1,9 +1,10 @@
 import styled from "styled-components";
+import { spacing } from "../styles/scssTokens";
 
 export const TabsContainer = styled.div`
   display: flex;
   gap: 0.5rem;
-  padding: 0.75rem;
+  padding: ${spacing.space};
   background: rgba(20, 20, 30, 0.95);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -30,10 +31,9 @@ export const CubeTab = styled.button<{ $selected: boolean }>`
   background: ${(props) =>
     props.$selected ? "rgba(102, 179, 255, 0.25)" : "rgba(40, 40, 50, 0.6)"};
   border: 1px solid
-    ${(props) =>
-      props.$selected ? "#66b3ff" : "rgba(255, 255, 255, 0.1)"};
+    ${(props) => (props.$selected ? "#66b3ff" : "rgba(255, 255, 255, 0.1)")};
   border-radius: 8px;
-  padding: 0.75rem 1rem;
+  padding: ${spacing.space};
   cursor: pointer;
   transition: all 0.2s ease;
   color: #fff;

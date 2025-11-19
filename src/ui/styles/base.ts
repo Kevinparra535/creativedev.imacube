@@ -216,7 +216,7 @@ export const cssVariables = {
     space_x7: 'var(--space-x7)'
   },
   zIndex: {
-    canvas: 1,
+    canvas: 100, // Canvas on top, UI panels use pointer-events for interaction
     ui: 10,
     overlay: 100,
     modal: 1000
