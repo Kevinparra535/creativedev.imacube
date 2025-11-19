@@ -17,19 +17,23 @@ interface AIStatusProps {
   onReset?: () => void;
 }
 
-export default function AIStatus({ 
-  isConfigured, 
-  isEnabled, 
+export default function AIStatus({
+  isConfigured,
+  isEnabled,
   onToggle,
   totalTokens = 0,
   messageCount = 0,
-  onReset
+  onReset,
 }: AIStatusProps) {
   // Calcular costo estimado (gpt-4o-mini: $0.15/1M input, $0.60/1M output, promedio ~$0.30/1M)
-  const estimatedCost = (totalTokens / 1_000_000) * 0.30;
+  const estimatedCost = (totalTokens / 1_000_000) * 0.3;
 
   const handleReset = () => {
-    if (window.confirm("⚠️ ¿Estás seguro?\n\nEsto reiniciará TODOS los cubos a su estado inicial:\n• Posiciones originales\n• Conocimiento perdido\n• Libros leídos borrados\n• Emociones reiniciadas\n\n¿Continuar?")) {
+    if (
+      window.confirm(
+        "⚠️ ¿Estás seguro?\n\nEsto reiniciará TODOS los cubos a su estado inicial:\n• Posiciones originales\n• Conocimiento perdido\n• Libros leídos borrados\n• Emociones reiniciadas\n\n¿Continuar?"
+      )
+    ) {
       onReset?.();
     }
   };
@@ -39,7 +43,9 @@ export default function AIStatus({
       <StatusRow>
         <StatusIndicator $active={isConfigured} />
         <StatusLabel>OpenAI</StatusLabel>
-        <StatusValue>{isConfigured ? "Configurado" : "No configurado"}</StatusValue>
+        <StatusValue>
+          {isConfigured ? "Configurado" : "No configurado"}
+        </StatusValue>
       </StatusRow>
 
       <StatusRow>
@@ -54,12 +60,12 @@ export default function AIStatus({
             <StatusLabel>Mensajes</StatusLabel>
             <StatusValue>{messageCount}</StatusValue>
           </StatusRow>
-          
+
           <StatusRow>
             <StatusLabel>Tokens</StatusLabel>
             <StatusValue>{totalTokens.toLocaleString()}</StatusValue>
           </StatusRow>
-          
+
           <StatusRow>
             <StatusLabel>Costo est.</StatusLabel>
             <StatusValue>${estimatedCost.toFixed(4)}</StatusValue>
@@ -80,9 +86,7 @@ export default function AIStatus({
       )}
 
       {onReset && (
-        <ResetButton onClick={handleReset}>
-          🔄 Reiniciar Todo
-        </ResetButton>
+        <ResetButton onClick={handleReset}>🔄 Reiniciar Todo</ResetButton>
       )}
     </AIStatusPanel>
   );
