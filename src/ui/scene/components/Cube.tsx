@@ -430,6 +430,44 @@ export default function Cube({
     }
 
     // ────────────────────────────────────────────────────────────────
+    // LOCAL STEERING: SEPARATION + BOUNDS AVOIDANCE (reduces clumping)
+    // ────────────────────────────────────────────────────────────────
+    {
+      // Personality-based separation strength
+      const sepBase = currentPersonality === "extrovert" ? 6 : currentPersonality === "chaotic" ? 9 : 8;
+      const desiredSeparation = 4.5; // meters
+      const neighbors = getNeighbors(id, cubePos.current, desiredSeparation + 2);
+      let repelX = 0;
+      let repelZ = 0;
+      for (const nb of neighbors) {
+        const dx = cubePos.current[0] - nb.position[0];
+        const dz = cubePos.current[2] - nb.position[2];
+        const d2 = dx * dx + dz * dz;
+        if (d2 > 0.0001) {
+          // Inverse-square falloff to push stronger when too close
+          const inv = 1 / d2;
+          repelX += dx * inv;
+          repelZ += dz * inv;
+        }
+      }
+      // Wall avoidance toward sandbox center when near walls (|x|,|z| ~ 50)
+      const bound = 46; // start steering back before actual wall at ~50
+      const bx = cubePos.current[0];
+      const bz = cubePos.current[2];
+      if (Math.abs(bx) > bound) repelX += bx > 0 ? -0.5 : 0.5;
+      if (Math.abs(bz) > bound) repelZ += bz > 0 ? -0.5 : 0.5;
+
+      const mag = Math.hypot(repelX, repelZ);
+      if (mag > 0.0001) {
+        // Normalize and scale by separation strength and delta to be frame-rate independent
+        const nx = (repelX / mag) * sepBase;
+        const nz = (repelZ / mag) * sepBase;
+        // Apply a gentle continuous force at center of mass
+        api.applyForce([nx * delta, 0, nz * delta], [0, 0, 0]);
+      }
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // MIRROR SELF-RECOGNITION SYSTEM
     // ────────────────────────────────────────────────────────────────
     if (mirrorPosition && t - lastMirrorCheck.current > 0.5) {
@@ -558,21 +596,26 @@ export default function Cube({
         // Add book targets
         explorationTargets.push(...bookTargets);
 
-        // Add other cubes as social targets
+        // Add other cubes as social targets only if sufficiently far (avoid clustering)
         allCubeIds.forEach((cubeId) => {
           if (cubeId !== id) {
             const otherCube = getCube(cubeId);
             if (otherCube && otherCube.position) {
-              explorationTargets.push({
-                object: {
-                  position: {
-                    x: otherCube.position[0],
-                    y: otherCube.position[1],
-                    z: otherCube.position[2],
+              const dx = otherCube.position[0] - cubePos.current[0];
+              const dz = otherCube.position[2] - cubePos.current[2];
+              const dist = Math.hypot(dx, dz);
+              if (dist > 10) {
+                explorationTargets.push({
+                  object: {
+                    position: {
+                      x: otherCube.position[0],
+                      y: otherCube.position[1],
+                      z: otherCube.position[2],
+                    },
                   },
-                },
-                type: "cube",
-              });
+                  type: "cube",
+                });
+              }
             }
           }
         });

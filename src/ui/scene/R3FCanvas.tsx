@@ -89,7 +89,7 @@ export default function R3FCanvas({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code === "Space") {
+      if (e.code === "Tab") {
         e.preventDefault();
         if (selectedId) {
           onCameraLockChange(!cameraLocked);

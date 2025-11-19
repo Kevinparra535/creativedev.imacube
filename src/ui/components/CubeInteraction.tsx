@@ -124,7 +124,7 @@ export default function CubeInteraction({
       {cubeId && (
         <CameraHint $locked={cameraLocked ?? true}>
           {cameraLocked ? "🔒 Cámara bloqueada" : "🔓 Cámara libre"}
-          <span>Presiona ESPACIO para {cameraLocked ? "desbloquear" : "bloquear"}</span>
+          <span>Presiona TAB para {cameraLocked ? "desbloquear" : "bloquear"}</span>
         </CameraHint>
       )}
 
