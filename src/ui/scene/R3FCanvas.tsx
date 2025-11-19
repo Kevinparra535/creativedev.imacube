@@ -18,14 +18,15 @@ import {
 } from "@react-three/postprocessing";
 import Cube from "./components/Cube";
 import type { CubeProps } from "./components/Cube";
+import type { CubeData } from "../components/CubeList";
 import SandBox from "./objects/SandBox";
 import Ambients from "./objects/Ambients";
 import { Books } from "./objects/Books";
-import { CUBES_CONFIG } from "../../config/cubesConfig";
 import Mirror from "./objects/Mirror";
 import { FollowCamera } from "../utils/FollowCamera";
 
 interface R3FCanvasProps {
+  cubes: CubeData[]; // Dynamic cubes from storage
   selectedId: string | null;
   onSelect: (id: string) => void;
   cameraLocked: boolean;
@@ -35,6 +36,7 @@ interface R3FCanvasProps {
 }
 
 export default function R3FCanvas({
+  cubes,
   selectedId,
   onSelect,
   cameraLocked,
@@ -71,7 +73,7 @@ export default function R3FCanvas({
   );
 
   // All cube IDs for social exploration
-  const allCubeIds = useMemo(() => CUBES_CONFIG.map((c) => c.id), []);
+  const allCubeIds = useMemo(() => cubes.map((c) => c.id), [cubes]);
 
   const iceTextureMap = useLoader(TextureLoader, "/textures/ice_texture.jpg");
   const lavaTextureMap = useLoader(TextureLoader, "/textures/lava_texture.jpg");
@@ -147,7 +149,7 @@ export default function R3FCanvas({
             </EffectComposer>
 
             <group onPointerMissed={() => onSelect("")}>
-              {CUBES_CONFIG.map((cube) => (
+              {cubes.map((cube) => (
                 <Cube
                   key={cube.id}
                   id={cube.id}
@@ -155,6 +157,7 @@ export default function R3FCanvas({
                   auto={cube.auto}
                   personality={cube.personality as CubeProps["personality"]}
                   eyeStyle={cube.eyeStyle as CubeProps["eyeStyle"]}
+                  color={cube.color}
                   selected={selectedId === cube.id}
                   hopSignal={hopSignal}
                   onSelect={onSelect}

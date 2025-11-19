@@ -13,6 +13,7 @@ export interface CubeData {
   name?: string;
   personality?: Personality;
   eyeStyle?: EyeStyle;
+  color?: string; // Hex color for the cube
   auto?: boolean;
   position?: [number, number, number];
 }
@@ -35,7 +36,7 @@ export default function CubeList({
           $selected={selectedId === cube.id}
           onClick={() => onSelect(cube.id)}
         >
-          <TabId>{cube.id}</TabId>
+          <TabId>{cube.name || cube.id}</TabId>
           {/* <TabPersonality>{cube.personality || "neutral"}</TabPersonality> */}
         </CubeTab>
       ))}

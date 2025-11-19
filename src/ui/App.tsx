@@ -1,10 +1,12 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
 import R3FCanvas from "./scene/R3FCanvas";
-import { CUBES_CONFIG } from "../config/cubesConfig";
 import { GlobalStyles } from "./styles/base";
 import CubeFooter from "./components/CubeFooter";
 import CubeInteraction from "./components/CubeInteraction";
 import AIStatus from "./components/AIStatus";
+import { CubeEditor } from "./components/CubeEditor";
+import { loadCubesFromStorage, addCubeToStorage, isFirstTimeUser } from "../utils/cubeStorage";
+import type { CubeData } from "./components/CubeList";
 import { useCommunityCubes } from "./hooks/useCommunityStore";
 import {
   analyzeIntent,
@@ -24,6 +26,10 @@ import type { Personality } from "./components/CubeList";
 const responseCache = new Map<string, string>();
 
 function App() {
+  // Editor state - show on first load
+  const [showEditor, setShowEditor] = useState(() => isFirstTimeUser());
+  const [dynamicCubes, setDynamicCubes] = useState<CubeData[]>(() => loadCubesFromStorage());
+  
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [cameraLocked, setCameraLocked] = useState(true);
   const [cubeResponse, setCubeResponse] = useState<string | null>(null);
@@ -48,6 +54,20 @@ function App() {
     const saved = localStorage.getItem('messageCount');
     return saved ? parseInt(saved, 10) : 0;
   });
+  
+  // Handle cube creation from editor
+  const handleCreateCube = useCallback((cubeData: {
+    name: string;
+    color: string;
+    eyeStyle: "bubble" | "dot";
+    personality: Personality;
+  }) => {
+    const newCube = addCubeToStorage(cubeData);
+    setDynamicCubes((prev) => [...prev, newCube]);
+    setShowEditor(false);
+    // Auto-select the new cube
+    setSelectedId(newCube.id);
+  }, []);
   
   // Rate limiting
   const lastMessageTimeRef = useRef(0);
@@ -94,7 +114,7 @@ function App() {
 
   // Merge static config with live registry (position/capabilities)
   const cubesLive = useMemo(() => {
-    return CUBES_CONFIG.map((c) => {
+    return dynamicCubes.map((c) => {
       const found = live.find((l) => l.id === c.id);
       return {
         ...c,
@@ -104,7 +124,7 @@ function App() {
         capabilities: found?.capabilities,
       };
     });
-  }, [live]);
+  }, [live, dynamicCubes]);
 
   // Retry logic con exponential backoff
   const retryWithBackoff = useCallback(
@@ -236,7 +256,9 @@ function App() {
   return (
     <>
       <GlobalStyles />
+      {showEditor && <CubeEditor onCreateCube={handleCreateCube} />}
       <R3FCanvas 
+        cubes={dynamicCubes}
         selectedId={selectedId} 
         onSelect={setSelectedId} 
         cameraLocked={cameraLocked} 

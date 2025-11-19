@@ -70,14 +70,16 @@ export default function CubeFooter({ cubes, selectedId, onSelect }: CubeFooterPr
     const hasChangedPersonality = selectedCube.readingExperiences && 
       selectedCube.readingExperiences.originalPersonality !== selectedCube.personality;
     
+    const cubeName = selectedCube.name || selectedCube.id;
+    
     const cubeNode: FlowNode = {
       id: "cube",
       type: "default",
       position: { x: 400, y: 150 },
       data: {
         label: hasChangedPersonality 
-          ? `${selectedCube.id}\n${selectedCube.readingExperiences!.originalPersonality} → ${selectedCube.personality}`
-          : `${selectedCube.id} - ${selectedCube.personality}`,
+          ? `${cubeName}\n${selectedCube.readingExperiences!.originalPersonality} → ${selectedCube.personality}`
+          : `${cubeName} - ${selectedCube.personality}`,
       },
       style: {
         background: hasChangedPersonality 

@@ -139,7 +139,7 @@ export default function CubeInteraction({
   return (
     <InteractionPanel>
       <HeaderSection>
-        <HeaderTitle>Conversando con {cubeName}</HeaderTitle>
+        <HeaderTitle>Conversando con {cubeName || cubeId}</HeaderTitle>
         <HeaderSubtitle>Personalidad: {cubePersonality}</HeaderSubtitle>
       </HeaderSection>
 

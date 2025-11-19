@@ -67,6 +67,7 @@ export interface CubeProps {
   auto?: boolean;
   eyeStyle?: "bubble" | "dot";
   personality?: Personality;
+  color?: string; // Hex color for custom cube appearance
   learningPulseSignal?: number; // increment to trigger a learning pulse
   conversationMessage?: string; // Incoming message from human conversation
   conversationTimestamp?: number; // Timestamp to detect new messages
@@ -94,6 +95,7 @@ export default function Cube({
   auto = true,
   eyeStyle = "bubble",
   personality = "calm",
+  color, // Custom color from editor
   learningPulseSignal = 0,
   conversationMessage,
   conversationTimestamp,
@@ -1477,7 +1479,7 @@ export default function Cube({
         <boxGeometry />
         <meshStandardMaterial
           ref={materialRef}
-          color="#888888"
+          color={color || "#888888"}
           emissiveIntensity={0.1}
           roughness={0.6}
           metalness={0.1}
