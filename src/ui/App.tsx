@@ -306,6 +306,7 @@ function App() {
       if (!id || id === "") {
         console.log("⬜ Deselecting cube");
         setSelectedId(null);
+        setCubeResponse(null); // Clear response cuando deseleccionamos
         return;
       }
       
@@ -313,9 +314,11 @@ function App() {
       if (cube) {
         console.log("✅ Selecting cube:", cube.id, cube.name);
         setSelectedId(id);
+        setCubeResponse(null); // Clear response al cambiar de cubo
       } else {
         console.log("❌ Cube not found:", id);
         setSelectedId(null);
+        setCubeResponse(null); // Clear response si no se encuentra
       }
     },
     [dynamicCubes]
