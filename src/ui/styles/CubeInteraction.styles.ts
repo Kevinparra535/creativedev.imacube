@@ -221,3 +221,93 @@ export const CameraHint = styled.div<{ $locked: boolean }>`
     }
   }
 `;
+
+export const SuggestionsContainer = styled.div`
+  padding: 1rem;
+  background: rgba(30, 30, 40, 0.5);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  animation: slideUp 0.4s ease;
+
+  .suggestions-title {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 0.75rem;
+    font-weight: 500;
+  }
+
+  .suggestions-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
+
+const bubbleHover = keyframes`
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.02);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+`;
+
+export const SuggestionBubble = styled.button`
+  background: rgba(102, 179, 255, 0.15);
+  border: 1px solid rgba(102, 179, 255, 0.3);
+  border-radius: 12px;
+  padding: 0.75rem;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  line-height: 1.3;
+  font-family: inherit;
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      135deg,
+      rgba(102, 179, 255, 0.1),
+      transparent
+    );
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+
+  &:hover {
+    background: rgba(102, 179, 255, 0.25);
+    border-color: rgba(102, 179, 255, 0.5);
+    transform: translateY(-2px);
+    animation: ${bubbleHover} 0.6s ease;
+
+    &::before {
+      opacity: 1;
+    }
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+`;

@@ -13,6 +13,8 @@ import {
   EmptyState,
   InputContainer,
   CameraHint,
+  SuggestionsContainer,
+  SuggestionBubble,
 } from "../styles/CubeInteraction.styles";
 
 interface CubeInteractionProps {
@@ -84,6 +86,48 @@ export default function CubeInteraction({
     }
   };
 
+  // Sugerencias basadas en personalidad
+  const getSuggestions = (): string[] => {
+    const suggestionsByPersonality: Record<string, string[]> = {
+      calm: [
+        "¿Qué piensas sobre la vida?",
+        "Cuéntame algo que hayas aprendido",
+        "¿Cómo te sientes hoy?",
+        "¿Qué libro estás leyendo?",
+      ],
+      curious: [
+        "¿Qué te gustaría explorar?",
+        "Cuéntame algo interesante",
+        "¿Qué has descubierto hoy?",
+        "¿Tienes alguna pregunta?",
+      ],
+      extrovert: [
+        "¡Hola! ¿Cómo estás?",
+        "Cuéntame algo divertido",
+        "¿Qué te hace feliz?",
+        "¡Vamos a charlar!",
+      ],
+      chaotic: [
+        "¿Qué locura has hecho hoy?",
+        "Dime algo inesperado",
+        "¿Qué opinas de todo esto?",
+        "¿Alguna idea loca?",
+      ],
+      neutral: [
+        "¿Qué información tienes?",
+        "Dame un dato interesante",
+        "¿Qué has observado?",
+        "Cuéntame sobre ti",
+      ],
+    };
+
+    return suggestionsByPersonality[cubePersonality.toLowerCase()] || suggestionsByPersonality.neutral;
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    setInputValue(suggestion);
+  };
+
   if (!cubeId) {
     return (
       <InteractionPanel>
@@ -126,6 +170,22 @@ export default function CubeInteraction({
           {cameraLocked ? "🔒 Cámara bloqueada" : "🔓 Cámara libre"}
           <span>Presiona TAB para {cameraLocked ? "desbloquear" : "bloquear"}</span>
         </CameraHint>
+      )}
+
+      {cubeId && conversation.length === 0 && (
+        <SuggestionsContainer>
+          <div className="suggestions-title">💡 Sugerencias para empezar:</div>
+          <div className="suggestions-grid">
+            {getSuggestions().map((suggestion, idx) => (
+              <SuggestionBubble
+                key={idx}
+                onClick={() => handleSuggestionClick(suggestion)}
+              >
+                {suggestion}
+              </SuggestionBubble>
+            ))}
+          </div>
+        </SuggestionsContainer>
       )}
 
       <InputContainer>

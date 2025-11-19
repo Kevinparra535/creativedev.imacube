@@ -30,6 +30,8 @@ interface R3FCanvasProps {
   onSelect: (id: string) => void;
   cameraLocked: boolean;
   onCameraLockChange: (locked: boolean) => void;
+  conversationMessage?: string | null;
+  conversationTimestamp?: number;
 }
 
 export default function R3FCanvas({
@@ -37,6 +39,8 @@ export default function R3FCanvas({
   onSelect,
   cameraLocked,
   onCameraLockChange,
+  conversationMessage,
+  conversationTimestamp,
 }: R3FCanvasProps) {
   const [hopSignal, setHopSignal] = useState(0);
   const bookMeshes = useRef<Mesh[]>([]);
@@ -158,6 +162,12 @@ export default function R3FCanvas({
                   mirrorPosition={mirrorPosition}
                   allCubeIds={allCubeIds}
                   ambientZones={ambientZones}
+                  conversationMessage={
+                    selectedId === cube.id && conversationMessage ? conversationMessage : undefined
+                  }
+                  conversationTimestamp={
+                    selectedId === cube.id ? conversationTimestamp : undefined
+                  }
                 />
               ))}
             </group>

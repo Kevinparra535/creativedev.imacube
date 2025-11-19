@@ -68,6 +68,8 @@ export interface CubeProps {
   eyeStyle?: "bubble" | "dot";
   personality?: Personality;
   learningPulseSignal?: number; // increment to trigger a learning pulse
+  conversationMessage?: string; // Incoming message from human conversation
+  conversationTimestamp?: number; // Timestamp to detect new messages
   onSelect?: (id: string) => void;
   position?: Triplet;
   bookTargets?: Array<{
@@ -93,6 +95,8 @@ export default function Cube({
   eyeStyle = "bubble",
   personality = "calm",
   learningPulseSignal = 0,
+  conversationMessage,
+  conversationTimestamp,
   onSelect,
   bookTargets = [],
   mirrorPosition,
@@ -116,6 +120,9 @@ export default function Cube({
   const hasRecognizedSelf = useRef(false);
   const lastMirrorCheck = useRef(0);
   const [thought, setThought] = useState<string>("...");
+  const [thoughtMode, setThoughtMode] = useState<"autonomous" | "conversation">("autonomous");
+  const lastConversationTimestampRef = useRef(0);
+  const conversationThoughtTimeRef = useRef(0); // Tiempo restante para mostrar conversación
 
   type CubePhase =
     | "idle"
@@ -348,6 +355,49 @@ export default function Cube({
     };
   }, [id, personality, personalityForRegistry, socialTrait]);
 
+  // Process incoming conversation messages
+  useEffect(() => {
+    if (
+      conversationMessage &&
+      conversationTimestamp &&
+      conversationTimestamp !== lastConversationTimestampRef.current
+    ) {
+      lastConversationTimestampRef.current = conversationTimestamp;
+
+      // Switch to conversation mode
+      setThoughtMode("conversation");
+      setThought(conversationMessage);
+
+      // Calculate duration based on message length and personality
+      const baseTime = 3000; // 3 seconds base
+      const lengthFactor = Math.min(conversationMessage.length * 30, 5000); // +30ms per char, max +5s
+      const personalityMultiplier: Record<Personality, number> = {
+        calm: 1.5, // Takes time to ponder
+        curious: 1.2, // Thinks about it
+        extrovert: 0.8, // Quick to move on
+        chaotic: 0.6, // Barely lingers
+        neutral: 1.0,
+      };
+
+      conversationThoughtTimeRef.current =
+        (baseTime + lengthFactor) * personalityMultiplier[currentPersonality];
+
+      // Visual reaction: small excited hop
+      if (phase.current === "idle" || phase.current === "settle") {
+        phase.current = "squash";
+        phaseStart.current = performance.now();
+        targetScale.current = [1.15, 0.85, 1.15]; // Gentle squash (not full jump)
+      }
+
+      // Boost pulse strength for visual feedback
+      pulseStrength.current = Math.max(pulseStrength.current, 0.6);
+
+      console.log(
+        `💬 ${id} received conversation: "${conversationMessage.slice(0, 50)}..."`
+      );
+    }
+  }, [conversationMessage, conversationTimestamp, currentPersonality, id]);
+
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
 
@@ -356,6 +406,42 @@ export default function Cube({
       lastLearningPulse.current = learningPulseSignal;
       pulseStrength.current = 1;
     }
+
+    // ────────────────────────────────────────────────────────────────
+    // CONVERSATION MODE MANAGEMENT
+    // ────────────────────────────────────────────────────────────────
+    if (thoughtMode === "conversation") {
+      // Count down conversation thought duration
+      conversationThoughtTimeRef.current -= delta * 1000;
+
+      // Switch back to autonomous when duration expires
+      if (conversationThoughtTimeRef.current <= 0) {
+        setThoughtMode("autonomous");
+
+        // Generate a follow-up thought based on personality
+        const followUpThoughts: Record<Personality, string[]> = {
+          calm: ["Interesante...", "Hmm, déjame pensar...", "Entiendo..."],
+          curious: [
+            "¡Quiero saber más!",
+            "¿Y si...?",
+            "Hmm, interesante punto...",
+          ],
+          extrovert: [
+            "¡Genial charla!",
+            "¡Me encantó hablar!",
+            "¡Hablemos más!",
+          ],
+          chaotic: ["Bueno, siguiente cosa...", "Ya veo...", "Listo, sigamos..."],
+          neutral: ["Entendido.", "Anotado.", "Procesado."],
+        };
+
+        const thoughts = followUpThoughts[currentPersonality];
+        setThought(thoughts[Math.floor(Math.random() * thoughts.length)]);
+      }
+    }
+
+    // Skip autonomous behavior when in conversation mode
+    const skipAutonomous = thoughtMode === "conversation";
 
     // ────────────────────────────────────────────────────────────────
     // COMMUNITY UPDATE & SOCIAL LEARNING TICK
@@ -574,9 +660,9 @@ export default function Cube({
     }
 
     // ────────────────────────────────────────────────────────────────
-    // ATTENTION & NAVIGATION SYSTEM (only in auto mode)
+    // ATTENTION & NAVIGATION SYSTEM (only in auto mode and not in conversation)
     // ────────────────────────────────────────────────────────────────
-    if (auto) {
+    if (auto && !skipAutonomous) {
       const att = attentionState.current;
       const nav = navigationState.current;
 
