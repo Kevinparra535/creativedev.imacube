@@ -12,10 +12,15 @@ export function FollowCamera({
   controlsRef: React.RefObject<CameraControls | null>;
   locked: boolean;
 }) {
-  const eye = useRef<[number, number, number]>([-10, 5, 10]);
+  const eye = useRef<[number, number, number]>([-8, 15, 8]);
   const target = useRef<[number, number, number] | null>(null);
-  const followOffset = useRef<[number, number, number]>([-10, 6, 10]);
+  const followOffset = useRef<[number, number, number]>([-8, 15, 8]);
   const userInteracting = useRef(false);
+  
+  // Footer height is 450px - calculate vertical offset to center cube in visible area
+  // Typical viewport is ~900px, footer takes bottom 450px, so center should be ~225px from top
+  // This translates to lifting the target point higher in 3D space
+  const footerCompensation = 3.5; // Additional Y offset to compensate for footer
 
   useEffect(() => {
     const update = () => {
@@ -64,16 +69,16 @@ export function FollowCamera({
       // Update offset from current camera position
       const pos = controls.camera?.position;
       if (pos) {
-        followOffset.current = [pos.x - tx, pos.y - (ty + 0.5), pos.z - tz];
+        followOffset.current = [pos.x - tx, pos.y - (ty + footerCompensation), pos.z - tz];
       }
-      controls.setTarget(tx, ty + 0.5, tz, false);
+      controls.setTarget(tx, ty + footerCompensation, tz, false);
       return;
     }
 
     // Otherwise, smoothly move the eye to maintain the stored offset while following target
     const desiredEye: [number, number, number] = [
       tx + followOffset.current[0],
-      ty + 0.5 + followOffset.current[1],
+      ty + footerCompensation + followOffset.current[1],
       tz + followOffset.current[2],
     ];
     const k = Math.min(1, delta * 2.5);
@@ -86,7 +91,7 @@ export function FollowCamera({
       eye.current[1],
       eye.current[2],
       tx,
-      ty + 0.5,
+      ty + footerCompensation,
       tz,
       false
     );
