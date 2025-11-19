@@ -15,6 +15,7 @@ export interface CubeData {
   eyeStyle?: EyeStyle;
   color?: string; // Hex color for the cube
   auto?: boolean;
+  isUserCube?: boolean; // True if this is the user's interactive cube
   position?: [number, number, number];
 }
 
@@ -28,9 +29,12 @@ export default function CubeList({
   selectedId,
   onSelect,
 }: CubeListProps) {
+  // Only show the user's cube in the tabs
+  const userCubes = cubes.filter((cube) => cube.isUserCube);
+  
   return (
     <TabsContainer>
-      {cubes.map((cube) => (
+      {userCubes.map((cube) => (
         <CubeTab
           key={cube.id}
           $selected={selectedId === cube.id}

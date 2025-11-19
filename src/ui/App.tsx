@@ -5,7 +5,12 @@ import CubeFooter from "./components/CubeFooter";
 import CubeInteraction from "./components/CubeInteraction";
 import AIStatus from "./components/AIStatus";
 import { CubeEditor } from "./components/CubeEditor";
-import { loadCubesFromStorage, addCubeToStorage, isFirstTimeUser } from "../utils/cubeStorage";
+import { 
+  loadCubesFromStorage, 
+  addCubeToStorage, 
+  isFirstTimeUser,
+  initializeEnvironment 
+} from "../utils/cubeStorage";
 import type { CubeData } from "./components/CubeList";
 import { useCommunityCubes } from "./hooks/useCommunityStore";
 import {
@@ -63,9 +68,16 @@ function App() {
     personality: Personality;
   }) => {
     const newCube = addCubeToStorage(cubeData);
-    setDynamicCubes((prev) => [...prev, newCube]);
+    
+    // Initialize environment with NPC cubes after user creates their first cube
+    initializeEnvironment();
+    
+    // Reload all cubes (including NPCs)
+    const allCubes = loadCubesFromStorage();
+    setDynamicCubes(allCubes);
     setShowEditor(false);
-    // Auto-select the new cube
+    
+    // Auto-select the user's cube
     setSelectedId(newCube.id);
   }, []);
   
@@ -253,6 +265,18 @@ function App() {
     [selectedId, cubesLive, useAI, retryWithBackoff, totalTokens]
   );
 
+  // Handler to restrict selection to user's cube only
+  const handleCubeSelect = useCallback((id: string) => {
+    const cube = dynamicCubes.find(c => c.id === id);
+    // Only allow selection of user's cube
+    if (cube && cube.isUserCube) {
+      setSelectedId(id);
+    } else {
+      // Deselect if clicking on NPC cube
+      setSelectedId(null);
+    }
+  }, [dynamicCubes]);
+
   return (
     <>
       <GlobalStyles />
@@ -260,7 +284,7 @@ function App() {
       <R3FCanvas 
         cubes={dynamicCubes}
         selectedId={selectedId} 
-        onSelect={setSelectedId} 
+        onSelect={handleCubeSelect} 
         cameraLocked={cameraLocked} 
         onCameraLockChange={setCameraLocked}
         conversationMessage={cubeResponse}
@@ -276,7 +300,7 @@ function App() {
         isThinking={isThinking}
         cameraLocked={cameraLocked}
       />
-      <CubeFooter cubes={cubesLive} selectedId={selectedId} onSelect={setSelectedId} />
+      <CubeFooter cubes={cubesLive} selectedId={selectedId} onSelect={handleCubeSelect} />
       <AIStatus 
         isConfigured={aiConfigured} 
         isEnabled={useAI} 

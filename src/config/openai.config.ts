@@ -1,6 +1,6 @@
 /**
  * openai.config.ts
- * 
+ *
  * Configuración centralizada para OpenAI.
  * Lee variables de entorno y proporciona valores por defecto.
  */
@@ -17,7 +17,7 @@ export interface OpenAIEnvironmentConfig {
  */
 export function getOpenAIConfig(): OpenAIEnvironmentConfig {
   const apiKey = import.meta.env.VITE_OPENAI_API_KEY || "";
-  
+
   if (!apiKey) {
     console.warn(
       "⚠️ VITE_OPENAI_API_KEY no configurada. El sistema usará respuestas template-based."

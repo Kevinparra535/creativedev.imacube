@@ -36,7 +36,7 @@ export function saveCubesToStorage(cubes: CubeData[]): void {
 /**
  * Add a new cube to storage
  */
-export function addCubeToStorage(newCube: Omit<CubeData, "id" | "position" | "auto">): CubeData {
+export function addCubeToStorage(newCube: Omit<CubeData, "id" | "position" | "auto" | "isUserCube">): CubeData {
   const existingCubes = loadCubesFromStorage();
   
   // Generate unique ID
@@ -55,6 +55,7 @@ export function addCubeToStorage(newCube: Omit<CubeData, "id" | "position" | "au
     id,
     position: [x, y, z],
     auto: true,
+    isUserCube: true, // Mark as user's interactive cube
   };
   
   const updatedCubes = [...existingCubes, cubeData];
@@ -76,4 +77,76 @@ export function isFirstTimeUser(): boolean {
  */
 export function clearCubesStorage(): void {
   localStorage.removeItem(STORAGE_KEY);
+}
+
+/**
+ * Create autonomous NPC cubes to populate the environment
+ */
+export function createNPCCubes(): CubeData[] {
+  const npcCubes: CubeData[] = [
+    {
+      id: "npc1",
+      name: "Cube Zen",
+      personality: "calm",
+      eyeStyle: "bubble",
+      color: "#808080",
+      position: [-30, 8, -30],
+      auto: true,
+      isUserCube: false,
+    },
+    {
+      id: "npc2",
+      name: "Cube Social",
+      personality: "extrovert",
+      eyeStyle: "dot",
+      color: "#ff9800",
+      position: [30, 7, -30],
+      auto: true,
+      isUserCube: false,
+    },
+    {
+      id: "npc3",
+      name: "Cube Curioso",
+      personality: "curious",
+      eyeStyle: "bubble",
+      color: "#00bcd4",
+      position: [-30, 6, 30],
+      auto: true,
+      isUserCube: false,
+    },
+    {
+      id: "npc4",
+      name: "Cube Caos",
+      personality: "chaotic",
+      eyeStyle: "dot",
+      color: "#f44336",
+      position: [30, 9, 30],
+      auto: true,
+      isUserCube: false,
+    },
+  ];
+  
+  return npcCubes;
+}
+
+/**
+ * Initialize environment with NPC cubes if this is first time
+ */
+export function initializeEnvironment(): void {
+  const cubes = loadCubesFromStorage();
+  
+  // If no cubes exist, this will be handled by the editor
+  // NPC cubes will be added after user creates their first cube
+  if (cubes.length === 0) {
+    return;
+  }
+  
+  // Check if NPC cubes already exist
+  const hasNPCs = cubes.some(cube => !cube.isUserCube);
+  if (!hasNPCs) {
+    // Add NPC cubes to the environment
+    const npcCubes = createNPCCubes();
+    const allCubes = [...cubes, ...npcCubes];
+    saveCubesToStorage(allCubes);
+  }
 }
