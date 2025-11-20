@@ -14,7 +14,7 @@ React 19.2 + TypeScript + Vite (via `rolldown-vite` override). Modern ESM, stric
 - **UI Framework**: Styled-components v6 with transient props (`$propName`) for dynamic styling.
 - **UI Layout**: Chat panel (aside izquierdo), tabs horizontales + ReactFlow graph (footer).
 - **Knowledge Graph**: ReactFlow (`@xyflow/react`) for interactive node visualization in footer.
-- **OpenAI Integration**: Optional AI-powered conversations via gpt-4o-mini with personality-specific prompts.
+- **AI Integration**: Local-first backend (default) with optional OpenAI fallback; personality-specific prompts.
 
 ## Development Workflows
 
@@ -69,12 +69,12 @@ import publicAsset from '/public-asset.svg'  // Public folder assets use /
   - `src/ui/components/CubeInteraction.tsx` (chat panel en aside izquierdo)
   - `src/ui/components/CubeList.tsx` (tabs horizontales en footer)
   - `src/ui/components/CubeFooter.tsx` (footer wrapper con tabs + ReactFlow)
-  - `src/ui/components/AIStatus.tsx` (indicador OpenAI top-right)
+	- `src/ui/components/AIStatus.tsx` (indicador estado de IA top-right)
 - **Styles**: 
   - `src/ui/styles/CubeInteraction.styles.ts` (chat panel + camera hint)
   - `src/ui/styles/CubeList.styles.ts` (tabs horizontales)
   - `src/ui/styles/CubeFooter.styles.ts` (footer + ReactFlow theme)
-  - `src/ui/styles/AIStatus.styles.ts` (status panel OpenAI)
+	- `src/ui/styles/AIStatus.styles.ts` (status panel IA)
   - `src/ui/styles/ThoughtBubble.css` (legacy CSS para burbujas)
 - **Sandbox geometry**: 6 `Plane` bodies forming a closed cube; `Cube` bodies inside.
 - **Physics config**: `Physics` node with `gravity`, `defaultContactMaterial` (tuned `restitution`, `friction`, `contactEquationRelaxation` for springy collisions).
@@ -119,12 +119,13 @@ import publicAsset from '/public-asset.svg'  // Public folder assets use /
 	- **Book reading**: BookReadingSystem procesa lectura, mapea "Teología" → "theology", trackea conceptos progresivamente.
 	- **Concept tracking**: Set-based deduplication, almacena conceptos en readingExperiences.conceptsLearned.
 	- **Visual feedback**: Point light pulsa con pulseStrength, book completion dispara flash.
-- **OpenAI Conversation System**:
-	- **Hybrid mode**: AI-powered cuando configurado (gpt-4o-mini), fallback a templates automático.
+**AI Conversation System**:
+	- **Local-first**: backend local por defecto (`VITE_AI_BACKEND=local`, URL `VITE_LOCAL_AI_URL`, modelo `VITE_LOCAL_AI_MODEL`).
+	- **OpenAI opcional**: sólo si `VITE_AI_BACKEND=openai` y hay API key; si no, fallback a templates.
 	- **Personality prompts**: 5 system prompts personalizados (calm, extrovert, curious, chaotic, neutral).
 	- **Context enrichment**: Intención + conceptos + emociones enviados a API.
 	- **Conversation history**: 10 mensajes por cubo + system prompt persistente.
-	- **Cost optimization**: ~$0.05 por 1000 mensajes con gpt-4o-mini.
+	- **Respuesta robusta (local)**: extrae de `response|reply|message|text` o string simple.
 - **Best practices**:
 	- No mutar variables locales después del render; usar `useRef` + `useFrame`.
 	- Evitar suscripciones en render; mover a `useEffect` y limpiar (`unsub()`).
@@ -236,37 +237,34 @@ Uses flat config with these plugins:
 	- Toggle button to switch between modes
 	- Disabled state when no API key configured
 
-- Systems: `src/ui/scene/systems/Community.ts`
+- Systems: `src/systems/Community.ts`
 	- Global Map-based registry (`cubesRegistry`)
 	- Subscribe pattern with RAF throttling
 	- `updateCube` detects changes in position, personality, readingExperiences (including conceptsLearned length)
 	- `getCube`, `setCube`, `getAllCubes` for pub-sub access
 
-- Systems: `src/ui/scene/systems/AttentionSystem.ts`
+- Systems: `src/systems/AttentionSystem.ts`
 	- Escaneo de objetivos con pesos por personalidad
 	- Cálculo de interés: base weight + novelty bonus - visit penalty × distance factor
 	- Boredom thresholds: chaotic (4s), extrovert (8s), neutral (10s), curious (12s), calm (15s)
 	- Memory tracking: historial de visitas, timestamps, visit counts
 
-- Systems: `src/ui/scene/systems/NavigationSystem.ts`
+- Systems: `src/systems/NavigationSystem.ts`
 	- Jump direction computation con ruido según personalidad
 	- Jump strength y interval personalizados (calm: 2.8/2.5s, chaotic: 4.0/0.8s)
 	- Orientation computation preservando yaw, solo rotación Y
 	- Arrival detection: distancia + velocidad
 
-- Systems: `src/ui/scene/systems/BookReadingSystem.ts`
+- Systems: `src/systems/BookReadingSystem.ts`
 	- `DOMAIN_MAPPING`: maps Spanish book categories to KnowledgeDomain
 	- Processes reading progress, updates knowledge state
 	- Tracks concepts progressively during reading
 
-- Systems: `src/ui/scene/systems/OpenAIService.ts`
-	- Singleton service with conversation management
-	- 5 personality-specific system prompts
-	- Context enrichment: intent + concepts + emotions
-	- History management: 10 messages per cube
-	- Cost-effective: gpt-4o-mini (~$0.05/1000 msgs)
+- Services: `src/services/AI.service.ts`
+	- Singleton de conversación por cubo; local-first (URL/model configurables)
+	- Prompts por personalidad; historial (10 mensajes); enriquecimiento de contexto
 
-- Systems: `src/ui/scene/systems/InteractionSystem.ts`
+- Systems: `src/systems/InteractionSystem.ts`
 	- Template-based response fallback
 	- Intent analysis, concept extraction
 	- Visual effects generation
@@ -276,7 +274,7 @@ Uses flat config with these plugins:
 	- `KnowledgeState` initializer with all domains
 	- `DEFAULT_BOOK_EFFECTS` for theology domain
 
-- Data: `src/ui/scene/data/booksLibrary.ts`
+- Data: `src/data/booksLibrary.ts`
 	- `BookContent` interface with `conceptos?: string[]`
 	- La Biblia includes conceptos: ["Dios", "Fe", "Pecado", "Perdón", "Amor", "Esperanza"]
 
@@ -291,10 +289,11 @@ Uses flat config with these plugins:
 	  - c5 (Cube Neutro): [0, 5, 0] neutral/bubble
 	- Spawns en esquinas para evitar clumping inicial
 
-- Config: `src/config/openai.config.ts`
-	- Environment variable management: VITE_OPENAI_API_KEY, VITE_OPENAI_MODEL, etc.
-	- Default values: gpt-4o-mini, 150 tokens, 0.8 temperature
-	- isOpenAIConfigured() check function
+- Config: `src/config/ai.config.ts`
+	- Backend: `VITE_AI_BACKEND` (`local` por defecto | `openai`)
+	- Local: `VITE_LOCAL_AI_URL` (default `http://localhost:3001/api/chat`), `VITE_LOCAL_AI_MODEL` (default `llama3.1`)
+	- OpenAI opcional: `VITE_OPENAI_API_KEY`, `VITE_OPENAI_MODEL`, tokens/temperature
+	- `isOpenAIConfigured()` devuelve true si backend es `local` (no requiere API key)
 
 ## Anti-Clumping Pattern
 

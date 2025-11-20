@@ -10,6 +10,10 @@ import type {
   MessageIntent,
   ExtractedConcepts,
 } from "../systems/InteractionSystem";
+import {
+  getCubeMemory,
+  buildMemoryContext,
+} from "./CubeMemory.service";
 
 // ────────────────────────────────────────────────────────────────
 // TIPOS
@@ -186,7 +190,7 @@ IMPORTANTE:
   }
 
   /**
-   * Genera una respuesta usando OpenAI
+   * Genera una respuesta usando OpenAI o backend local con memoria dinámica
    */
   async generateResponse(
     cubeId: string,
@@ -204,12 +208,25 @@ IMPORTANTE:
 
       const history = this.conversationHistory.get(cubeId)!;
 
-      // Construir mensaje contextual
-      const contextualMessage = this.buildContextualPrompt(
+      // **INTEGRACIÓN DE MEMORIA DINÁMICA**
+      // Obtener memoria del cubo y construir contexto adicional
+      const memory = getCubeMemory(cubeId);
+      let memoryContext = "";
+      if (memory) {
+        memoryContext = buildMemoryContext(memory);
+      }
+
+      // Construir mensaje contextual con memoria
+      let contextualMessage = this.buildContextualPrompt(
         message,
         intent,
         concepts
       );
+
+      // Agregar memoria al contexto si existe
+      if (memoryContext) {
+        contextualMessage = `${memoryContext}\n\n${contextualMessage}`;
+      }
 
       // Agregar mensaje del usuario
       history.push({ role: "user", content: contextualMessage });

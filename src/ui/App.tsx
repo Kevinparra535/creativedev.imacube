@@ -28,9 +28,14 @@ import {
   getOpenAIService,
   isOpenAIInitialized,
 } from "../services/AI.service";
-import { getOpenAIConfig, isOpenAIConfigured } from "../config/openai.config";
+import { updateIdentityWithHints } from "../services/Identity.service";
+import {
+  initializeCubeMemory,
+  updateCubeMemory,
+  extractMemoryFromMessage,
+} from "../services/CubeMemory.service";
+import { getOpenAIConfig, isOpenAIConfigured } from "../config/ai.config";
 import type { Personality } from "./components/CubeList";
-import { updateIdentityWithHints } from "../systems/IdentityState";
 
 // Cache de respuestas para evitar llamadas repetidas
 const responseCache = new Map<string, string>();
@@ -79,6 +84,13 @@ function App() {
       personality: Personality;
     }) => {
       const newCube = addCubeToStorage(cubeData);
+
+      // **Inicializar memoria dinámica del cubo**
+      initializeCubeMemory(
+        newCube.id,
+        newCube.personality || "neutral",
+        newCube.name || `Cube ${newCube.id}`
+      );
 
       // Initialize environment with NPC cubes after user creates their first cube
       initializeEnvironment();
@@ -129,20 +141,27 @@ function App() {
         });
         setUseAI(true);
         setAiConfigured(true);
-        console.log("✅ OpenAI inicializado correctamente");
+        console.log("✅ AI inicializado correctamente");
       } catch (error) {
-        console.error("❌ Error inicializando OpenAI:", error);
+        console.error("❌ Error inicializando AI:", error);
         setUseAI(false);
         setAiConfigured(false);
       }
     } else {
-      console.log(
-        "ℹ️ OpenAI no configurado. Usando respuestas template-based."
-      );
+      console.log("ℹ️ AI no configurado. Usando respuestas template-based.");
       setUseAI(false);
       setAiConfigured(false);
     }
-  }, []);
+
+    // **Inicializar memoria dinámica para todos los cubos existentes**
+    dynamicCubes.forEach((cube) => {
+      initializeCubeMemory(
+        cube.id,
+        cube.personality || "neutral",
+        cube.name || `Cube ${cube.id}`
+      );
+    });
+  }, [dynamicCubes]);
 
   // Merge static config with live registry (position/capabilities)
   const cubesLive = useMemo(() => {
@@ -203,6 +222,10 @@ function App() {
 
       // 2. Extract concepts
       const concepts = extractConcepts(message, intent);
+
+      // **2b. Extraer información para memoria dinámica**
+      const memoryUpdate = extractMemoryFromMessage(message, intent);
+      updateCubeMemory(selectedId, memoryUpdate);
 
       // 2b. Activate transient modifiers based on personality hints
       if (concepts.personalityHints && concepts.personalityHints.length) {

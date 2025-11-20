@@ -29,7 +29,8 @@ export function getOpenAIConfig(): OpenAIEnvironmentConfig {
     );
   }
 
-  const backend = (import.meta.env.VITE_AI_BACKEND || "openai").toLowerCase();
+  // Default to 'local' since we no longer use OpenAI by default
+  const backend = (import.meta.env.VITE_AI_BACKEND || "local").toLowerCase();
 
   return {
     apiKey,

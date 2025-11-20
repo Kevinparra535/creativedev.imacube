@@ -10,6 +10,7 @@ Interactive R3F sandbox with bouncy physics, thought bubbles, swappable cute eye
 - ReactFlow (`@xyflow/react`) for interactive node visualization
 - Styled-components v6 for UI styling
 - Flat ESLint, strict TS, ESM-only
+- Local AI backend (default) with optional OpenAI fallback
 
 ## Quick Start
 
@@ -55,7 +56,7 @@ npm run lint     # Run ESLint on entire codebase
 ### UI Components
 
 - **Chat Panel (CubeInteraction)**: Left aside (400px) for real-time conversations with selected cube.
-  - **Personality-aware responses**: AI-powered (OpenAI gpt-4o-mini) or template-based fallback.
+  - **Personality-aware responses**: AI-powered via local backend (default) or template-based fallback; OpenAI optional.
   - **Camera lock indicator**: Shows current state (🔒/🔓) and "Presiona TAB para..." hint.
   - **Conversation history**: Scrollable message log with thinking indicators.
   - **Context-aware**: Responses reflect learned concepts, emotions, and personality traits.
@@ -67,7 +68,7 @@ npm run lint     # Run ESLint on entire codebase
   - **Conocimientos** (knowledge domains) - Philosophy, theology, science, arts, etc.
   - **Conceptos aprendidos** (learned concepts) - Last 6 concepts from reading (e.g., "Dios", "Fe", "Pecado")
   - Interactive nodes with animated edges, zoom/pan controls, and minimap
-- **AI Status Indicator (AIStatus)**: Top-right panel showing OpenAI config status and mode toggle (AI/Template).
+- **AI Status Indicator (AIStatus)**: Top-right panel showing AI config status (local/disabled) and mode toggle (AI/Template).
 
 ### Learning & Knowledge System
 
@@ -88,12 +89,102 @@ npm run lint     # Run ESLint on entire codebase
 
 ### AI Conversation System
 
-- **Hybrid mode**: Uses OpenAI gpt-4o-mini when configured, falls back to template-based responses.
+- **Local-first**: Defaults to a local AI backend at `http://localhost:3001/api/chat` using `llama3.1` (configurable).
+- **Optional OpenAI**: Can switch to OpenAI if explicitly configured via env; otherwise uses templates when unavailable.
 - **Personality prompts**: 5 distinct system prompts (calm, extrovert, curious, chaotic, neutral).
-- **Context enrichment**: Sends user intent + learned concepts + emotional state to API.
-- **Conversation history**: Maintains 10-message history per cube for coherent dialogues.
-- **Cost-effective**: ~$0.05 per 1000 messages with gpt-4o-mini.
-- **Status indicator**: Top-right panel shows config status (green/red) and mode toggle.
+- **Context enrichment**: Sends user intent + learned concepts + emotional state to the API.
+- **Conversation history**: Maintains a 10-message history per cube for coherent dialogues.
+- **Status indicator**: Top-right panel shows AI configured status and mode toggle.
+
+#### Local AI Setup with Ollama
+
+The project uses **Ollama** as the local AI backend with a custom-trained model.
+
+##### Prerequisites
+
+1. **Install Ollama**: [Download here](https://ollama.ai/download)
+2. **Pull base model**:
+
+   ```pwsh
+   ollama pull llama3.1
+   ```
+
+##### Create Custom Model
+
+The project includes a `Modelfile` with personality-aware training:
+
+```pwsh
+# From project root
+ollama create imacube -f Modelfile
+```
+
+This creates the `imacube` model with:
+
+- Roleplay system prompt (cubes in a sandbox, no real-world knowledge)
+- 5 personality-specific response patterns
+- Optimized parameters (temperature 0.8, top_p 0.9)
+- 8 few-shot examples for tone/style
+
+##### Start the Proxy Server
+
+The `server/` folder contains an Express proxy:
+
+```pwsh
+cd server
+npm install
+npm start
+```
+
+This runs on `http://localhost:3001` and proxies requests to Ollama (`localhost:11434`).
+
+##### Configure Environment
+
+Create/update `.env` in project root:
+
+```env
+VITE_AI_BACKEND=local
+VITE_LOCAL_AI_URL=http://localhost:3001/api/chat
+VITE_LOCAL_AI_MODEL=imacube
+```
+
+##### Test the Model
+
+```pwsh
+# Test in console
+ollama run imacube
+
+# Try these prompts:
+# "Hola, ¿cómo estás?"
+# "¿Conoces a Einstein?" (should say no, stays in-character)
+# "¿Qué libros has leído?"
+```
+
+##### Alternative: Direct Ollama Connection
+
+Skip the proxy and connect directly:
+
+```env
+VITE_AI_BACKEND=local
+VITE_LOCAL_AI_URL=http://localhost:11434/api/chat
+VITE_LOCAL_AI_MODEL=imacube
+```
+
+**Note**: You may need to enable CORS:
+
+```pwsh
+$env:OLLAMA_ORIGINS="http://localhost:5173"
+ollama serve
+```
+
+##### Optional: Use OpenAI Instead
+
+```env
+VITE_AI_BACKEND=openai
+VITE_OPENAI_API_KEY=your_api_key_here
+VITE_OPENAI_MODEL=gpt-4o-mini
+```
+
+For more details, see [`.docs/OLLAMA_SETUP.md`](.docs/OLLAMA_SETUP.md).
 
 ## Key Files
 
@@ -105,16 +196,16 @@ npm run lint     # Run ESLint on entire codebase
 - `src/ui/scene/objects/Books.tsx` — Randomly spawned physics books with collision/bounce dynamics.
 - `src/ui/scene/objects/{BubbleEyes,DotEyes}.tsx` — Eye styles with blink, gaze tracking, and mood-based eyebrows.
 - `src/config/cubes.config.ts` — Centralized cube configuration (dispersed spawn positions).
-- `src/config/openai.config.ts` — OpenAI API configuration and environment variables.
+- `src/config/ai.config.ts` — Central AI configuration (local backend default, optional OpenAI envs).
 - `src/ui/scene/visual/visualState.ts` — Map `personality + mood(thought)` to material/anim targets.
-- `src/ui/scene/systems/Community.ts` — Global registry with pub-sub, RAF throttling, change detection.
-- `src/ui/scene/systems/AttentionSystem.ts` — Target scanning, interest calculation, boredom tracking.
-- `src/ui/scene/systems/NavigationSystem.ts` — Jump direction, orientation, arrival detection.
-- `src/ui/scene/systems/BookReadingSystem.ts` — Reading mechanics, knowledge mapping, concept tracking.
-- `src/ui/scene/systems/OpenAIService.ts` — AI conversation management, personality prompts, context enrichment.
-- `src/ui/scene/systems/InteractionSystem.ts` — Template-based response fallback, intent analysis.
+- `src/systems/Community.ts` — Global registry with pub-sub, RAF throttling, change detection.
+- `src/systems/AttentionSystem.ts` — Target scanning, interest calculation, boredom tracking.
+- `src/systems/NavigationSystem.ts` — Jump direction, orientation, arrival detection.
+- `src/systems/BookReadingSystem.ts` — Reading mechanics, knowledge mapping, concept tracking.
+- `src/services/AI.service.ts` — AI conversation management (local-first), personality prompts, context enrichment.
+- `src/systems/InteractionSystem.ts` — Template-based response fallback, intent analysis.
 - `src/ui/scene/guidelines/instrucciones.ts` — Knowledge domains, personality directives, learning effects.
-- `src/ui/scene/data/booksLibrary.ts` — Book content with concepts, domains, psychological effects.
+- `src/data/booksLibrary.ts` — Book content with concepts, domains, psychological effects.
 
 ### UI Components & Styles
 
