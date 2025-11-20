@@ -10,6 +10,28 @@ import type { MeshStandardMaterial, Mesh, PointLight } from "three";
 import { BubbleEyes, DotEyes } from "../objects";
 import { computeVisualTargets } from "../visual/visualState";
 import type { Personality } from "../visual/visualState";
+
+// Utility: lighten a hex color by a fraction (0..1)
+function lightenHex(hex: string, amt: number): string {
+  try {
+    const c = new Color(hex);
+    c.lerp(new Color("#ffffff"), amt);
+    return `#${c.getHexString()}`;
+  } catch {
+    return hex;
+  }
+}
+// Utility: tint a base color toward target by factor (0..1)
+function tintHex(base: string, target: string, amt: number): string {
+  try {
+    const b = new Color(base);
+    const t = new Color(target);
+    b.lerp(t, amt);
+    return `#${b.getHexString()}`;
+  } catch {
+    return base;
+  }
+}
 import {
   scanForTargets,
   isBoredOf,
@@ -33,6 +55,7 @@ import {
   updateCube,
   getNeighbors,
   getCube,
+  pruneExpiredModifiers,
 } from "../systems/Community";
 import {
   tryLearnFromNeighbors,
@@ -71,6 +94,7 @@ export interface CubeProps {
   learningPulseSignal?: number; // increment to trigger a learning pulse
   conversationMessage?: string; // Incoming message from human conversation
   conversationTimestamp?: number; // Timestamp to detect new messages
+  activeModifiers?: string[]; // Transient contextual identity overlays (sarcastic, shy, friendly, etc.)
   onSelect?: (id: string) => void;
   position?: Triplet;
   bookTargets?: Array<{
@@ -174,6 +198,7 @@ export default function Cube({
   const booksRead = useRef<string[]>([]);
   const conceptsLearned = useRef<Set<string>>(new Set());
   const selLightRef = useRef<PointLight | null>(null);
+  const lastPruneRef = useRef(0);
   // Orientation/self-righting state
   const quatRef = useRef<[number, number, number, number]>([0, 0, 0, 1]);
   const uprightTarget = useRef<Quaternion | null>(null);
@@ -366,9 +391,11 @@ export default function Cube({
     ) {
       lastConversationTimestampRef.current = conversationTimestamp;
 
-      // Switch to conversation mode
-      setThoughtMode("conversation");
-      setThought(conversationMessage);
+      // Switch to conversation mode (defer state updates outside effect body to avoid cascading renders rule)
+      setTimeout(() => {
+        setThoughtMode("conversation");
+        setThought(conversationMessage);
+      }, 0);
 
       // Calculate duration based on message length and personality
       const baseTime = 3000; // 3 seconds base
@@ -402,6 +429,12 @@ export default function Cube({
 
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
+
+    // Periodic pruning of expired modifiers (every ~2s)
+    if (t - lastPruneRef.current > 2) {
+      pruneExpiredModifiers();
+      lastPruneRef.current = t;
+    }
 
     // Detect learning pulse signal edges
     if (learningPulseSignal !== lastLearningPulse.current) {
@@ -674,8 +707,9 @@ export default function Cube({
         lastScanTime.current = t;
 
         // Build complete exploration targets list
+        type ExplorationObject = { position: { x: number; y: number; z: number }; userData?: Record<string, unknown> };
         const explorationTargets: Array<{
-          object: any;
+          object: ExplorationObject;
           type: "book" | "cube" | "zone" | "ambient";
           domain?: string;
           difficulty?: "basic" | "intermediate" | "advanced";
@@ -874,7 +908,12 @@ export default function Cube({
               const jumpStrength = getJumpStrength(
                 currentPersonality as Personality
               );
-              api.applyImpulse([dx, jumpStrength, dz], [0, 0, 0]);
+              const modsNav = (props.activeModifiers as string[]) || [];
+              let hopScale = 1;
+              if (modsNav.includes("shy")) hopScale *= 0.75;
+              if (modsNav.includes("serious")) hopScale *= 0.9;
+              if (mood === "sad") hopScale *= 0.65;
+              api.applyImpulse([dx, jumpStrength * hopScale, dz], [0, 0, 0]);
               nav.lastJumpAt = t;
               // Trigger jump animation overlay without leaving navigating
               navJumpPhase.current = "squash";
@@ -1147,8 +1186,13 @@ export default function Cube({
       const angle = Math.random() * Math.PI * 2;
       const mag = 0.6 + Math.random() * 0.6;
       dir.current = [Math.cos(angle) * mag, Math.sin(angle) * mag];
+      const modsIdle = (props.activeModifiers as string[]) || [];
+      let hopScale = 1;
+      if (modsIdle.includes("shy")) hopScale *= 0.75;
+      if (modsIdle.includes("serious")) hopScale *= 0.9;
+      if (mood === "sad") hopScale *= 0.65;
       api.applyImpulse(
-        [dir.current[0] * 1.2, 3.2, dir.current[1] * 1.2],
+        [dir.current[0] * 1.2 * hopScale, 3.2 * hopScale, dir.current[1] * 1.2 * hopScale],
         [0, 0, 0]
       );
       phase.current = "air";
@@ -1181,12 +1225,34 @@ export default function Cube({
 
     // Idle breathing and confusion jitter overlays (visual-only, small)
     if (phase.current === "idle" && ref.current) {
-      const vis = computeVisualTargets(
+      let vis = computeVisualTargets(
         thought,
         currentPersonality as Personality,
         selected,
         hovered
       );
+      // Modifier-based visual overlays (non-destructive layering)
+      const mods = (props.activeModifiers as string[]) || [];
+      if (mods.length) {
+        if (mods.includes("sarcastic")) {
+          vis = { ...vis, emissiveIntensity: vis.emissiveIntensity + 0.03, jitterAmp: Math.max(vis.jitterAmp, 0.02) };
+        }
+        if (mods.includes("shy")) {
+          vis = { ...vis, emissiveIntensity: Math.max(0.02, vis.emissiveIntensity - 0.04), breathAmp: vis.breathAmp * 0.6 };
+        }
+        if (mods.includes("friendly")) {
+          vis = { ...vis, color: lightenHex(vis.color, 0.08), breathAmp: vis.breathAmp + 0.01 };
+        }
+        if (mods.includes("serious")) {
+          vis = { ...vis, breathAmp: vis.breathAmp * 0.4, jitterAmp: 0 };
+        }
+        if (mods.includes("funny")) {
+          vis = { ...vis, jitterAmp: Math.max(vis.jitterAmp, 0.025), emissiveIntensity: vis.emissiveIntensity + 0.02 };
+        }
+        if (mods.includes("philosophical")) {
+          vis = { ...vis, color: tintHex(vis.color, "#b488ff", 0.35), breathAmp: vis.breathAmp + 0.015 };
+        }
+      }
       const breath = 1 + vis.breathAmp * Math.sin(t * 1.6);
       const jitter = vis.jitterAmp
         ? vis.jitterAmp * (Math.sin(t * 20 + (id.charCodeAt(0) % 10)) * 0.5)
@@ -1381,12 +1447,33 @@ export default function Cube({
 
     // Update material from visual targets each frame, including pulse emissive boost
     if (materialRef.current) {
-      const vis = computeVisualTargets(
+      let vis = computeVisualTargets(
         thought,
         currentPersonality as Personality,
         selected,
         hovered
       );
+      const mods = (props.activeModifiers as string[]) || [];
+      if (mods.length) {
+        if (mods.includes("sarcastic")) {
+          vis = { ...vis, emissiveIntensity: vis.emissiveIntensity + 0.03 };
+        }
+        if (mods.includes("shy")) {
+          vis = { ...vis, emissiveIntensity: Math.max(0.02, vis.emissiveIntensity - 0.04) };
+        }
+        if (mods.includes("friendly")) {
+          vis = { ...vis, color: lightenHex(vis.color, 0.08) };
+        }
+        if (mods.includes("serious")) {
+          vis = { ...vis, breathAmp: vis.breathAmp * 0.4 };
+        }
+        if (mods.includes("funny")) {
+          vis = { ...vis, jitterAmp: Math.max(vis.jitterAmp, 0.025) };
+        }
+        if (mods.includes("philosophical")) {
+          vis = { ...vis, color: tintHex(vis.color, "#b488ff", 0.35) };
+        }
+      }
       materialRef.current.color.set(vis.color);
       materialRef.current.emissive.set(
         new Color(vis.color).multiplyScalar(0.4)
@@ -1410,6 +1497,7 @@ export default function Cube({
         : 0;
     }
   });
+
 
   useEffect(() => {
     let mounted = true;

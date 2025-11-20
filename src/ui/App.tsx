@@ -21,6 +21,8 @@ import {
   generateResponse,
   generateVisualEffects,
 } from "./scene/systems/InteractionSystem";
+import { updateCube, getCube } from "./scene/systems/Community";
+import type { ActiveModifier } from "./scene/systems/Community";
 import {
   initializeOpenAI,
   getOpenAIService,
@@ -146,8 +148,9 @@ function App() {
         ...c,
         position: found?.position ?? c.position,
         personality: found?.personality ?? c.personality,
-        // Attach capabilities for footer if available
+        // Attach capabilities and active modifiers if available
         capabilities: found?.capabilities,
+        activeModifiers: found?.activeModifiers || [],
       };
     });
   }, [live, dynamicCubes]);
@@ -196,6 +199,26 @@ function App() {
 
       // 2. Extract concepts
       const concepts = extractConcepts(message, intent);
+
+      // 2b. Activate transient modifiers based on personality hints
+      if (concepts.personalityHints && concepts.personalityHints.length) {
+        const curState = getCube(selectedId);
+        const existing = curState?.activeModifiers || [];
+        const now = Date.now();
+        const TTL = 3 * 60 * 1000; // 3 minutos
+        const hints = concepts.personalityHints;
+        // Merge: refresh expiry if exists, add if new
+        const map: Record<string, ActiveModifier> = {};
+        existing.forEach((m) => {
+          map[m.name] = m;
+        });
+        hints.forEach((h) => {
+          map[h] = { name: h, expiresAt: now + TTL };
+        });
+        // Keep also non-hint existing ones that haven't expired yet
+        const merged = Object.values(map).filter((m) => m.expiresAt > now);
+        updateCube(selectedId, { activeModifiers: merged });
+      }
 
       // 3. Get cube personality
       const selectedCube = cubesLive.find((c) => c.id === selectedId);
@@ -253,7 +276,8 @@ function App() {
             intent,
             concepts,
             personality,
-            cubeName
+            cubeName,
+            (getCube(selectedId)?.activeModifiers || []).map((m) => m.name)
           );
           setMessageCount((prev) => prev + 1);
           console.log("📝 Respuesta template-based");
@@ -266,7 +290,8 @@ function App() {
           intent,
           concepts,
           personality,
-          cubeName
+          cubeName,
+          (getCube(selectedId)?.activeModifiers || []).map((m) => m.name)
         );
         setMessageCount((prev) => prev + 1);
       }
@@ -301,7 +326,7 @@ function App() {
   const handleCubeSelect = useCallback(
     (id: string) => {
       console.log("🖱️ handleCubeSelect called with:", id);
-      
+
       // If empty string or no id, deselect
       if (!id || id === "") {
         console.log("⬜ Deselecting cube");
@@ -309,7 +334,7 @@ function App() {
         setCubeResponse(null); // Clear response cuando deseleccionamos
         return;
       }
-      
+
       const cube = dynamicCubes.find((c) => c.id === id);
       if (cube) {
         console.log("✅ Selecting cube:", cube.id, cube.name);
@@ -355,7 +380,9 @@ function App() {
         cubeResponse={cubeResponse}
         isThinking={isThinking}
         cameraLocked={cameraLocked}
-        isUserCube={cubesLive.find((c) => c.id === selectedId)?.isUserCube ?? false}
+        isUserCube={
+          cubesLive.find((c) => c.id === selectedId)?.isUserCube ?? false
+        }
       />
       <CubeFooter
         cubes={cubesLive}

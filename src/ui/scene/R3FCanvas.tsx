@@ -168,6 +168,7 @@ export default function R3FCanvas({
                   mirrorPosition={mirrorPosition}
                   allCubeIds={allCubeIds}
                   ambientZones={ambientZones}
+                  activeModifiers={((cube as { activeModifiers?: Array<{ name: string }> }).activeModifiers?.map((mod: { name: string }) => mod.name)) || []}
                   conversationMessage={
                     selectedId === cube.id && conversationMessage
                       ? conversationMessage

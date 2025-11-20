@@ -170,7 +170,8 @@ export function generateResponse(
   intent: MessageIntent,
   concepts: ExtractedConcepts,
   personality: Personality,
-  _cubeName: string
+  _cubeName: string,
+  modifiers: string[] = []
 ): string {
   // Respuestas según personalidad
   const responses: Record<
@@ -409,10 +410,48 @@ export function generateResponse(
   };
 
   const personalityResponses = responses[personality][intent];
-  const response =
-    personalityResponses[
-      Math.floor(Math.random() * personalityResponses.length)
-    ];
+  let response = personalityResponses[
+    Math.floor(Math.random() * personalityResponses.length)
+  ];
+
+  // Apply contextual modifiers (transient identity overlays)
+  if (modifiers.length) {
+    const has = (m: string) => modifiers.includes(m);
+
+    if (has("sarcastic")) {
+      // Light sarcastic tone: add subtle interjection if not already present
+      if (!/pff|como sea|whatever/i.test(response)) {
+        response = `Pff... ${response.replace(/!+/g, "!")}`;
+      }
+    }
+    if (has("shy")) {
+      // Shorten response
+      if (response.length > 42) {
+        response = response.slice(0, 42).replace(/[,;:\s]+$/g, "").trim() + "...";
+      }
+    }
+    if (has("friendly")) {
+      if (!/gracias|aprec/i.test(response)) {
+        response = response + " Me alegra compartir esto.";
+      }
+    }
+    if (has("serious")) {
+      response = response
+        .replace(/!+/g, ".")
+        .replace(/\.{2,}/g, ".")
+        .trim();
+    }
+    if (has("funny")) {
+      if (!/jaja|jeje|haha/i.test(response)) {
+        response = response + " (jeje)";
+      }
+    }
+    if (has("philosophical")) {
+      if (!/\(reflex|reflexion|reflexionando\)/i.test(response)) {
+        response = response + " (reflexionando...)";
+      }
+    }
+  }
 
   return response;
 }

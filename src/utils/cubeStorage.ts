@@ -1,5 +1,5 @@
 import type { CubeData } from "../ui/components/CubeList";
-import type { PublicCubeState } from "../ui/scene/systems/Community";
+import type { PublicCubeState, ActiveModifier } from "../ui/scene/systems/Community";
 
 const STORAGE_KEY = "creativedev.cubes";
 const DYNAMIC_STATE_KEY = "creativedev.cubes.dynamicState";
@@ -134,6 +134,7 @@ export function mergeCubeStates(cubes: CubeData[], dynamicStates: Record<string,
         learningProgress: dynamic.learningProgress,
         knowledge: dynamic.knowledge,
         readingExperiences: dynamic.readingExperiences,
+        activeModifiers: dynamic.activeModifiers as ActiveModifier[] | undefined,
       };
     }
     return cube;
