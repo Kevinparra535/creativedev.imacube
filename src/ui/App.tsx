@@ -217,7 +217,10 @@ function App() {
         });
         // Keep also non-hint existing ones that haven't expired yet
         const merged = Object.values(map).filter((m) => m.expiresAt > now);
-        updateCube(selectedId, { activeModifiers: merged });
+          updateCube(selectedId, { activeModifiers: merged });
+          // Identity evolution tracking (hint counters + traits vector)
+          const personality: Personality = (curState?.personality as Personality) || "neutral";
+          updateIdentityWithHints(selectedId, personality, hints);
       }
 
       // 3. Get cube personality
