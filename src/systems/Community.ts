@@ -1,4 +1,5 @@
 import type { Personality } from "../ui/components/CubeList";
+import type { BehaviorDecision } from "./CognitionTypes";
 
 export type Capability = "selfRighting" | "navigation";
 
@@ -27,6 +28,8 @@ export interface PublicCubeState {
     emphasisLight?: boolean;
     expiresAt: number;
   };
+  /** Última decisión cognitiva del planificador (con TTL aplicado) */
+  behaviorState?: BehaviorDecision;
   learningProgress?: { navigation: number; selfRighting: number };
   knowledge?: Record<string, number>;
   readingExperiences?: {
@@ -162,6 +165,15 @@ export function updateCube(id: string, partial: Partial<PublicCubeState>) {
   // Transient action change
   const transientChanged = cur.transientAction !== next.transientAction;
 
+  // Behavior state change (shallow compare key fields)
+  const bsCur = (cur as any).behaviorState;
+  const bsNext = (next as any).behaviorState;
+  const behaviorChanged = bsCur !== bsNext && !!bsNext && (
+    bsCur?.goal !== bsNext.goal ||
+    bsCur?.intent !== bsNext.intent ||
+    bsCur?.mood !== bsNext.mood
+  );
+
   if (
     posChanged ||
     persChanged ||
@@ -171,7 +183,8 @@ export function updateCube(id: string, partial: Partial<PublicCubeState>) {
     knowledgeChanged ||
     readingExpChanged ||
     modsChanged ||
-    transientChanged
+    transientChanged ||
+    behaviorChanged
   ) {
     registry.set(id, next);
     notify();

@@ -17,6 +17,7 @@ import {
 import { deriveNPCActions, applyNPCActions } from "./NPCInteractionBridge.service";
 import { buildWorldKnowledgeContext } from "../data/worldKnowledge";
 import { getArchetypeForPersonality, getModelNameForArchetype } from "../config/npcArchetypes";
+import { planBehavior } from "./BehaviorPlanner.service";
 
 // ────────────────────────────────────────────────────────────────
 // TIPOS
@@ -332,6 +333,13 @@ IMPORTANTE:
         applyNPCActions(cubeId, actions);
       } catch (bridgeErr) {
         console.warn("NPCInteractionBridge error:", bridgeErr);
+      }
+
+      // Planificar comportamiento (best-effort; no bloquear si falla)
+      try {
+        await planBehavior(cubeId, personality, message);
+      } catch (planErr) {
+        console.warn("BehaviorPlanner error:", planErr);
       }
 
       return {

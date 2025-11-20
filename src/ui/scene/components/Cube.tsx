@@ -146,7 +146,9 @@ export default function Cube({
   const hasRecognizedSelf = useRef(false);
   const lastMirrorCheck = useRef(0);
   const [thought, setThought] = useState<string>("...");
-  const [thoughtMode, setThoughtMode] = useState<"autonomous" | "conversation">("autonomous");
+  const [thoughtMode, setThoughtMode] = useState<"autonomous" | "conversation">(
+    "autonomous"
+  );
   const lastConversationTimestampRef = useRef(0);
   const conversationThoughtTimeRef = useRef(0); // Tiempo restante para mostrar conversación
 
@@ -229,6 +231,13 @@ export default function Cube({
   const personalityForRegistry: ListPersonality =
     personality as ListPersonality;
 
+  // Personality shift tracking for gradual evolution
+  const personalityShifts = useRef<Array<{ shift: string; timestamp: number }>>(
+    []
+  );
+  const SHIFT_THRESHOLD = 5; // Number of consistent shifts needed to change personality
+  const SHIFT_WINDOW_MS = 60000; // Time window to consider shifts (1 minute)
+
   // Eyes targets derived from thought and current personality (may have changed from reading)
   const { eyeTargetScale, eyeTargetLook, mood } = useMemo(() => {
     const txt = (thought || "").toLowerCase();
@@ -242,44 +251,76 @@ export default function Cube({
       | "angry"
       | "sad" = "neutral";
 
-    // Priority 1: Physical jump phases (temporary emotional states)
-    if (txt.includes("preparando")) mood = "prep";
-    else if (txt.includes("weee") || txt.includes("!")) mood = "happy";
-    else if (txt.includes("plof")) mood = "land";
-    // Priority 2: Navigation/cognitive states
-    else if (
-      txt.includes("qué hay") ||
-      txt.includes("¿") ||
-      txt.includes("?") ||
-      txt.includes("déjame ver") ||
-      txt.includes("interesante")
-    )
-      mood = "curious";
-    else if (
-      txt.includes("se ve interesante") ||
-      txt.includes("voy hacia") ||
-      txt.includes("allá")
-    )
-      mood = "happy";
-    // Priority 3: Emotional keywords
-    else if (txt.includes("triste") || txt.includes("😢")) mood = "sad";
-    else if (
-      txt.includes("enojado") ||
-      txt.includes("grr") ||
-      txt.includes("frustrado")
-    )
-      mood = "angry";
-    else if (
-      txt.includes("hmm") ||
-      txt.includes("zig") ||
-      txt.includes("bonito")
-    )
-      mood = "curious";
-    // Priority 4: Personality baseline
-    else {
-      if (currentPersonality === "extrovert") mood = "happy";
-      else if (currentPersonality === "chaotic") mood = "angry";
-      else if (currentPersonality === "curious") mood = "curious";
+    // Priority 0: AI-provided mood from behaviorState (highest priority)
+    const cubeStateForMood = getCube(id);
+    const aiMood = cubeStateForMood?.behaviorState?.mood;
+    if (aiMood) {
+      // Map AI mood to local mood type
+      const moodMap: Record<
+        string,
+        | "neutral"
+        | "prep"
+        | "air"
+        | "land"
+        | "curious"
+        | "happy"
+        | "angry"
+        | "sad"
+      > = {
+        happy: "happy",
+        sad: "sad",
+        angry: "angry",
+        curious: "curious",
+        neutral: "neutral",
+        prep: "prep",
+        air: "air",
+        land: "land",
+      };
+      const mappedMood = moodMap[aiMood];
+      if (mappedMood) {
+        mood = mappedMood;
+      }
+    } else {
+      // Fallback to keyword-based mood detection
+      // Priority 1: Physical jump phases (temporary emotional states)
+      if (txt.includes("preparando")) mood = "prep";
+      else if (txt.includes("weee") || txt.includes("!")) mood = "happy";
+      else if (txt.includes("plof")) mood = "land";
+      // Priority 2: Navigation/cognitive states
+      else if (
+        txt.includes("qué hay") ||
+        txt.includes("¿") ||
+        txt.includes("?") ||
+        txt.includes("déjame ver") ||
+        txt.includes("interesante")
+      )
+        mood = "curious";
+      else if (
+        txt.includes("se ve interesante") ||
+        txt.includes("voy hacia") ||
+        txt.includes("allá")
+      )
+        mood = "happy";
+      // Priority 3: Emotional keywords
+      else if (txt.includes("triste") || txt.includes("😢")) mood = "sad";
+      else if (
+        txt.includes("enojado") ||
+        txt.includes("grr") ||
+        txt.includes("frustrado")
+      )
+        mood = "angry";
+      else if (
+        txt.includes("hmm") ||
+        txt.includes("zig") ||
+        txt.includes("bonito")
+      )
+        mood = "curious";
+      // Priority 4: Personality baseline
+      else {
+        if (currentPersonality === "extrovert") mood = "happy";
+        else if (currentPersonality === "chaotic") mood = "angry";
+        else if (currentPersonality === "curious") mood = "curious";
+      }
     }
 
     switch (mood) {
@@ -326,7 +367,7 @@ export default function Cube({
           mood,
         };
     }
-  }, [thought, currentPersonality]);
+  }, [thought, currentPersonality, id]);
 
   // Material & learning pulse
   const materialRef = useRef<MeshStandardMaterial | null>(null);
@@ -430,35 +471,35 @@ export default function Cube({
   }, [conversationMessage, conversationTimestamp, currentPersonality, id]);
 
   useFrame((state, delta) => {
-        // Transient Action Consumption (jump / colorShift / emphasisLight)
-        const pubState = getCube(id);
-        const ta = pubState?.transientAction;
-        if (ta) {
-          if (ta.expiresAt < Date.now()) {
-            updateCube(id, { transientAction: undefined });
-          } else {
-            if (ta.jump && lastTransientActionId.current !== ta.expiresAt) {
-              api.applyImpulse([0, 3.2, 0], [0, 0, 0]);
-            }
-            if (ta.colorShift) {
-              lastColorShift.current = ta.colorShift;
-            }
-            if (ta.emphasisLight && selLightRef.current) {
-              selLightRef.current.intensity = 2.2;
-            }
-            if (ta.jump || ta.emphasisLight) {
-              updateCube(id, {
-                transientAction: {
-                  colorShift: ta.colorShift,
-                  jump: false,
-                  emphasisLight: false,
-                  expiresAt: ta.expiresAt,
-                },
-              });
-              lastTransientActionId.current = ta.expiresAt;
-            }
-          }
+    // Transient Action Consumption (jump / colorShift / emphasisLight)
+    const transientState = getCube(id);
+    const ta = transientState?.transientAction;
+    if (ta) {
+      if (ta.expiresAt < Date.now()) {
+        updateCube(id, { transientAction: undefined });
+      } else {
+        if (ta.jump && lastTransientActionId.current !== ta.expiresAt) {
+          api.applyImpulse([0, 3.2, 0], [0, 0, 0]);
         }
+        if (ta.colorShift) {
+          lastColorShift.current = ta.colorShift;
+        }
+        if (ta.emphasisLight && selLightRef.current) {
+          selLightRef.current.intensity = 2.2;
+        }
+        if (ta.jump || ta.emphasisLight) {
+          updateCube(id, {
+            transientAction: {
+              colorShift: ta.colorShift,
+              jump: false,
+              emphasisLight: false,
+              expiresAt: ta.expiresAt,
+            },
+          });
+          lastTransientActionId.current = ta.expiresAt;
+        }
+      }
+    }
     const t = state.clock.elapsedTime;
 
     // Periodic pruning of expired modifiers (every ~2s)
@@ -497,7 +538,11 @@ export default function Cube({
             "¡Me encantó hablar!",
             "¡Hablemos más!",
           ],
-          chaotic: ["Bueno, siguiente cosa...", "Ya veo...", "Listo, sigamos..."],
+          chaotic: [
+            "Bueno, siguiente cosa...",
+            "Ya veo...",
+            "Listo, sigamos...",
+          ],
           neutral: ["Entendido.", "Anotado.", "Procesado."],
         };
 
@@ -586,9 +631,18 @@ export default function Cube({
     // ────────────────────────────────────────────────────────────────
     {
       // Personality-based separation strength
-      const sepBase = currentPersonality === "extrovert" ? 6 : currentPersonality === "chaotic" ? 9 : 8;
+      const sepBase =
+        currentPersonality === "extrovert"
+          ? 6
+          : currentPersonality === "chaotic"
+            ? 9
+            : 8;
       const desiredSeparation = 4.5; // meters
-      const neighbors = getNeighbors(id, cubePos.current, desiredSeparation + 2);
+      const neighbors = getNeighbors(
+        id,
+        cubePos.current,
+        desiredSeparation + 2
+      );
       let repelX = 0;
       let repelZ = 0;
       for (const nb of neighbors) {
@@ -708,8 +762,7 @@ export default function Cube({
         const philosophicalThoughts: Record<string, string> = {
           extrovert: "Me pregunto qué piensan los demás de mí...",
           calm: "El reflejo muestra el exterior, no el interior.",
-          curious:
-            "Si puedo verme, ¿qué más puedo descubrir sobre mí mismo?",
+          curious: "Si puedo verme, ¿qué más puedo descubrir sobre mí mismo?",
           chaotic: "¿Soy realmente así? ¡Necesito cambiar!",
           neutral: "Observación: la auto-percepción afecta la identidad.",
         };
@@ -726,19 +779,103 @@ export default function Cube({
     }
 
     // ────────────────────────────────────────────────────────────────
+    // AI BEHAVIOR STATE INTEGRATION
+    // ────────────────────────────────────────────────────────────────
+    const pubState = getCube(id);
+    const aiBehavior = pubState?.behaviorState;
+
+    // Process AI personality shift suggestions
+    if (
+      aiBehavior?.personalityShift &&
+      aiBehavior.personalityShift !== "none"
+    ) {
+      const now = Date.now();
+      const recentShifts = personalityShifts.current.filter(
+        (s) => now - s.timestamp < SHIFT_WINDOW_MS
+      );
+      personalityShifts.current = recentShifts;
+      personalityShifts.current.push({
+        shift: aiBehavior.personalityShift,
+        timestamp: now,
+      });
+
+      // Check if we have enough consistent shifts in same direction
+      const shiftCounts: Record<string, number> = {};
+      personalityShifts.current.forEach((s) => {
+        shiftCounts[s.shift] = (shiftCounts[s.shift] || 0) + 1;
+      });
+
+      const dominantShift = Object.entries(shiftCounts).reduce(
+        (max, [shift, count]) => (count > max.count ? { shift, count } : max),
+        { shift: "", count: 0 }
+      );
+
+      if (dominantShift.count >= SHIFT_THRESHOLD) {
+        // Evolve personality!
+        const shiftMap: Record<string, Personality> = {
+          more_calm: "calm",
+          more_curious: "curious",
+          more_extrovert: "extrovert",
+          more_chaotic: "chaotic",
+          more_neutral: "neutral",
+        };
+        const newPersonality = shiftMap[dominantShift.shift];
+        if (newPersonality && newPersonality !== currentPersonality) {
+          setCurrentPersonality(newPersonality);
+          setThought(
+            `Siento que estoy cambiando... ahora soy más ${newPersonality}`
+          );
+          pulseStrength.current = Math.max(pulseStrength.current, 1.5);
+          personalityShifts.current = []; // Reset after evolution
+        }
+      }
+    }
+
+    // AI-driven target override for navigation
+    const aiTarget = aiBehavior?.target;
+    if (aiTarget && aiTarget.type !== "none" && aiTarget.position) {
+      const nav = navigationState.current;
+
+      // If AI provided a target and we're not already going there, override
+      if (!isNavigating.current || !nav.targetPosition) {
+        const targetPos: [number, number, number] = [
+          aiTarget.position[0],
+          aiTarget.position[1],
+          aiTarget.position[2],
+        ];
+        Object.assign(nav, startNavigation(targetPos));
+        phase.current = "navigating";
+        isNavigating.current = true;
+        phaseStart.current = t;
+
+        // Set thought based on AI intent
+        if (aiBehavior.intent) {
+          setThought(aiBehavior.intent.replace(/_/g, " "));
+        }
+      }
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // ATTENTION & NAVIGATION SYSTEM (only in auto mode and not in conversation)
     // ────────────────────────────────────────────────────────────────
     if (auto && !skipAutonomous) {
       const att = attentionState.current;
       const nav = navigationState.current;
 
-      // SCANNING: Periodic scan for interesting targets
+      // SCANNING: Periodic scan for interesting targets (only if no AI target)
       // Allow scanning whenever not actively navigating to find goals sooner
-      if (!isNavigating.current && t - lastScanTime.current > scanInterval) {
+      if (
+        !isNavigating.current &&
+        t - lastScanTime.current > scanInterval &&
+        !aiTarget
+      ) {
         lastScanTime.current = t;
 
         // Build complete exploration targets list
-        type ExplorationObject = { position: { x: number; y: number; z: number }; userData?: Record<string, unknown> };
+        type ExplorationObject = {
+          position: { x: number; y: number; z: number };
+          userData?: Record<string, unknown>;
+        };
         const explorationTargets: Array<{
           object: ExplorationObject;
           type: "book" | "cube" | "zone" | "ambient";
@@ -893,9 +1030,8 @@ export default function Cube({
             pulseStrength.current = 0.6; // small arrival pulse
 
             // Check if book has full content and decide whether to read
-            const bookContent = (att.currentTarget.object as any)?.userData?.bookContent as
-              | BookContent
-              | undefined;
+            const bookContent = (att.currentTarget.object as any)?.userData
+              ?.bookContent as BookContent | undefined;
             if (bookContent) {
               const wantsToRead = decideTORead(
                 bookContent,
@@ -1224,7 +1360,11 @@ export default function Cube({
       if (modsIdle.includes("serious")) hopScale *= 0.9;
       if (mood === "sad") hopScale *= 0.65;
       api.applyImpulse(
-        [dir.current[0] * 1.2 * hopScale, 3.2 * hopScale, dir.current[1] * 1.2 * hopScale],
+        [
+          dir.current[0] * 1.2 * hopScale,
+          3.2 * hopScale,
+          dir.current[1] * 1.2 * hopScale,
+        ],
         [0, 0, 0]
       );
       phase.current = "air";
@@ -1264,29 +1404,52 @@ export default function Cube({
         hovered
       );
       // Apply transient color shift tint if present
-      if (lastColorShift.current && pubState?.transientAction) {
-        vis = { ...vis, color: tintHex(vis.color, lastColorShift.current, 0.5) };
+      if (lastColorShift.current && transientState?.transientAction) {
+        vis = {
+          ...vis,
+          color: tintHex(vis.color, lastColorShift.current, 0.5),
+        };
       }
       // Modifier-based visual overlays (non-destructive layering)
       const mods = (props.activeModifiers as string[]) || [];
       if (mods.length) {
         if (mods.includes("sarcastic")) {
-          vis = { ...vis, emissiveIntensity: vis.emissiveIntensity + 0.03, jitterAmp: Math.max(vis.jitterAmp, 0.02) };
+          vis = {
+            ...vis,
+            emissiveIntensity: vis.emissiveIntensity + 0.03,
+            jitterAmp: Math.max(vis.jitterAmp, 0.02),
+          };
         }
         if (mods.includes("shy")) {
-          vis = { ...vis, emissiveIntensity: Math.max(0.02, vis.emissiveIntensity - 0.04), breathAmp: vis.breathAmp * 0.6 };
+          vis = {
+            ...vis,
+            emissiveIntensity: Math.max(0.02, vis.emissiveIntensity - 0.04),
+            breathAmp: vis.breathAmp * 0.6,
+          };
         }
         if (mods.includes("friendly")) {
-          vis = { ...vis, color: lightenHex(vis.color, 0.08), breathAmp: vis.breathAmp + 0.01 };
+          vis = {
+            ...vis,
+            color: lightenHex(vis.color, 0.08),
+            breathAmp: vis.breathAmp + 0.01,
+          };
         }
         if (mods.includes("serious")) {
           vis = { ...vis, breathAmp: vis.breathAmp * 0.4, jitterAmp: 0 };
         }
         if (mods.includes("funny")) {
-          vis = { ...vis, jitterAmp: Math.max(vis.jitterAmp, 0.025), emissiveIntensity: vis.emissiveIntensity + 0.02 };
+          vis = {
+            ...vis,
+            jitterAmp: Math.max(vis.jitterAmp, 0.025),
+            emissiveIntensity: vis.emissiveIntensity + 0.02,
+          };
         }
         if (mods.includes("philosophical")) {
-          vis = { ...vis, color: tintHex(vis.color, "#b488ff", 0.35), breathAmp: vis.breathAmp + 0.015 };
+          vis = {
+            ...vis,
+            color: tintHex(vis.color, "#b488ff", 0.35),
+            breathAmp: vis.breathAmp + 0.015,
+          };
         }
       }
       const breath = 1 + vis.breathAmp * Math.sin(t * 1.6);
@@ -1490,7 +1653,10 @@ export default function Cube({
         hovered
       );
       if (lastColorShift.current && pubState?.transientAction) {
-        vis = { ...vis, color: tintHex(vis.color, lastColorShift.current, 0.5) };
+        vis = {
+          ...vis,
+          color: tintHex(vis.color, lastColorShift.current, 0.5),
+        };
       }
       const mods = (props.activeModifiers as string[]) || [];
       if (mods.length) {
@@ -1498,7 +1664,10 @@ export default function Cube({
           vis = { ...vis, emissiveIntensity: vis.emissiveIntensity + 0.03 };
         }
         if (mods.includes("shy")) {
-          vis = { ...vis, emissiveIntensity: Math.max(0.02, vis.emissiveIntensity - 0.04) };
+          vis = {
+            ...vis,
+            emissiveIntensity: Math.max(0.02, vis.emissiveIntensity - 0.04),
+          };
         }
         if (mods.includes("friendly")) {
           vis = { ...vis, color: lightenHex(vis.color, 0.08) };
@@ -1536,7 +1705,6 @@ export default function Cube({
         : 0;
     }
   });
-
 
   useEffect(() => {
     let mounted = true;
