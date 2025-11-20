@@ -96,6 +96,10 @@ npm run lint     # Run ESLint on entire codebase
 - **Conversation history**: Maintains a 10-message history per cube for coherent dialogues.
 - **Status indicator**: Top-right panel shows AI configured status and mode toggle.
 
+- **Status indicator**: Top-right panel shows AI configured status and mode toggle.
+- **Dynamic memory**: Tracks traits, facts, and preferences that evolve with interactions (see `.docs/MEMORIA_DINAMICA.md`).
+- **RAG (Retrieval-Augmented Generation)**: Knowledge base with 30+ entries about sandbox lore, zones, physics, NPCs, and mechanics (see `.docs/RAG_SISTEMA.md`).
+
 #### Local AI Setup with Ollama
 
 The project uses **Ollama** as the local AI backend with a custom-trained model.
@@ -202,10 +206,12 @@ For more details, see [`.docs/OLLAMA_SETUP.md`](.docs/OLLAMA_SETUP.md).
 - `src/systems/AttentionSystem.ts` — Target scanning, interest calculation, boredom tracking.
 - `src/systems/NavigationSystem.ts` — Jump direction, orientation, arrival detection.
 - `src/systems/BookReadingSystem.ts` — Reading mechanics, knowledge mapping, concept tracking.
-- `src/services/AI.service.ts` — AI conversation management (local-first), personality prompts, context enrichment.
+- `src/services/AI.service.ts` — AI conversation management (local-first), personality prompts, context enrichment, RAG integration.
+- `src/services/CubeMemory.service.ts` — Dynamic memory system (traits, facts, preferences evolution).
 - `src/systems/InteractionSystem.ts` — Template-based response fallback, intent analysis.
 - `src/ui/scene/guidelines/instrucciones.ts` — Knowledge domains, personality directives, learning effects.
 - `src/data/booksLibrary.ts` — Book content with concepts, domains, psychological effects.
+- `src/data/worldKnowledge.ts` — RAG knowledge base (30+ entries: lore, zones, physics, NPCs, mechanics, emotions).
 
 ### UI Components & Styles
 

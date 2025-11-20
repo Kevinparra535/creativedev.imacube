@@ -14,6 +14,7 @@ import {
   getCubeMemory,
   buildMemoryContext,
 } from "./CubeMemory.service";
+import { buildWorldKnowledgeContext } from "../data/worldKnowledge";
 
 // ────────────────────────────────────────────────────────────────
 // TIPOS
@@ -209,7 +210,10 @@ IMPORTANTE:
       const history = this.conversationHistory.get(cubeId)!;
 
       // **INTEGRACIÓN DE MEMORIA DINÁMICA**
-      // Obtener memoria del cubo y construir contexto adicional
+      // 1. Construir contexto de conocimiento del mundo (RAG)
+      const worldKnowledgeContext = buildWorldKnowledgeContext(message);
+
+      // 2. Obtener memoria del cubo y construir contexto adicional
       const memory = getCubeMemory(cubeId);
       let memoryContext = "";
       if (memory) {
@@ -223,7 +227,10 @@ IMPORTANTE:
         concepts
       );
 
-      // Agregar memoria al contexto si existe
+      // Agregar conocimiento del mundo + memoria al contexto
+      if (worldKnowledgeContext) {
+        contextualMessage = `${worldKnowledgeContext}\n\n${contextualMessage}`;
+      }
       if (memoryContext) {
         contextualMessage = `${memoryContext}\n\n${contextualMessage}`;
       }

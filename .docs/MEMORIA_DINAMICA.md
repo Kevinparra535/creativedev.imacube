@@ -58,25 +58,25 @@ Servicio principal de memoria persistente en `localStorage`.
 ```typescript
 interface CubeMemory {
   cubeId: string;
-  
+
   // Rasgos de personalidad dinámicos
   traits: string[];
   // Ejemplos: "es curioso", "admira al jugador", "está siendo más sarcástico"
-  
+
   // Hechos aprendidos del mundo/jugador
   facts: string[];
   // Ejemplos: "el jugador le enseñó 'glitch'", "el jugador dijo que son amigos"
-  
+
   // Preferencias del jugador detectadas
   preferences: string[];
   // Ejemplos: "le gusta el rock", "prefiere respuestas cortas"
-  
+
   // Estado emocional acumulado
   emotionalState: {
     dominantEmotion?: string;
     lastInteractionTone?: "positive" | "negative" | "neutral";
   };
-  
+
   // Estadísticas de interacción
   conversationStats: {
     totalMessages: number;
@@ -91,30 +91,36 @@ interface CubeMemory {
 #### Funciones Clave
 
 **Inicialización**:
+
 ```typescript
-initializeCubeMemory(cubeId, personality, cubeName)
+initializeCubeMemory(cubeId, personality, cubeName);
 ```
+
 - Crea memoria nueva con rasgos base según personalidad
 - Persiste en localStorage
 - Se llama una vez al crear el cubo
 
 **Actualización**:
+
 ```typescript
 updateCubeMemory(cubeId, {
   addTraits: ["está siendo más amable"],
   addFacts: ["el jugador le pidió que sea más amable"],
   emotionalTone: "positive",
-  intent: "instruction"
-})
+  intent: "instruction",
+});
 ```
+
 - Agrega nuevos rasgos/hechos sin duplicados
 - Actualiza estado emocional y estadísticas
 - Limita arrays para evitar memoria infinita (últimos 20 hechos, 10 preferencias)
 
 **Extracción Automática**:
+
 ```typescript
-extractMemoryFromMessage(message, intent)
+extractMemoryFromMessage(message, intent);
 ```
+
 - Analiza el mensaje del jugador con regex patterns
 - Detecta:
   - Preferencias: "me gusta X", "prefiero Y"
@@ -124,22 +130,25 @@ extractMemoryFromMessage(message, intent)
 - Retorna objeto `MemoryUpdate` listo para aplicar
 
 **Construcción de Contexto**:
+
 ```typescript
-buildMemoryContext(memory)
+buildMemoryContext(memory);
 ```
+
 - Genera string markdown con memoria del cubo
 - Formato:
+
   ```
   [MEMORIA DEL CUBO]
-  
+
   Rasgos de personalidad:
   - es tranquilo y reflexivo
   - está siendo más sarcástico
-  
+
   Hechos importantes:
   - el jugador le pidió que sea más sarcástico
   - el jugador dijo que son amigos
-  
+
   Estado emocional actual: curioso
   ```
 
@@ -155,15 +164,15 @@ async generateResponse(cubeId, message, personality, cubeName, intent, concepts)
   if (memory) {
     memoryContext = buildMemoryContext(memory);
   }
-  
+
   // 2. Construir mensaje con contexto de intent + concepts
   let contextualMessage = this.buildContextualPrompt(message, intent, concepts);
-  
+
   // 3. **Agregar memoria al contexto**
   if (memoryContext) {
     contextualMessage = `${memoryContext}\n\n${contextualMessage}`;
   }
-  
+
   // 4. Enviar a Ollama con memoria incluida
   history.push({ role: "user", content: contextualMessage });
   // ...
@@ -178,14 +187,14 @@ Actualiza memoria con cada mensaje:
 const handleUserMessage = async (message) => {
   // 1. Analizar intención
   const intent = analyzeIntent(message);
-  
+
   // 2. Extraer conceptos
   const concepts = extractConcepts(message, intent);
-  
+
   // 3. **Extraer y actualizar memoria**
   const memoryUpdate = extractMemoryFromMessage(message, intent);
   updateCubeMemory(selectedId, memoryUpdate);
-  
+
   // 4. Generar respuesta (AI.service ya usa memoria automáticamente)
   const response = await aiService.generateResponse(...);
   // ...
@@ -199,6 +208,7 @@ const handleUserMessage = async (message) => {
 **Jugador**: "Hola, ¿cómo estás?"
 
 **Memoria (inicial)**:
+
 ```json
 {
   "traits": ["es curioso", "siempre hace preguntas", "le fascina aprender"],
@@ -216,6 +226,7 @@ const handleUserMessage = async (message) => {
 **Jugador**: "Sé más sarcástico conmigo"
 
 **Memoria (actualizada)**:
+
 ```json
 {
   "traits": [
@@ -241,6 +252,7 @@ const handleUserMessage = async (message) => {
 **Jugador**: "Me gusta la música electrónica"
 
 **Memoria (actualizada)**:
+
 ```json
 {
   "traits": ["es curioso", "siempre hace preguntas", "está siendo más sarcástico"],
@@ -264,6 +276,7 @@ const handleUserMessage = async (message) => {
 **Jugador**: "¿Qué tal has estado?"
 
 **Contexto enviado a Ollama**:
+
 ```
 [MEMORIA DEL CUBO]
 
@@ -299,18 +312,22 @@ Mensaje del usuario: "¿Qué tal has estado?"
 ## Limitaciones del Sistema Actual
 
 ### 1. Análisis basado en Regex
+
 - **Problema**: Solo detecta patrones predefinidos
 - **Mejora futura**: NLP offline con modelo lightweight (spaCy, compromise.js)
 
 ### 2. Sin semántica
+
 - **Problema**: "me gusta el rock" y "amo el rock" se tratan diferente
 - **Mejora futura**: Embeddings para detectar similitud semántica
 
 ### 3. Sin olvido
+
 - **Problema**: Memoria crece indefinidamente (aunque limitada por límites de array)
 - **Mejora futura**: Sistema de decay/olvido basado en relevancia y tiempo
 
 ### 4. Sin consolidación
+
 - **Problema**: Hechos duplicados semánticamente ("el jugador dijo X" repetido)
 - **Mejora futura**: Sistema de consolidación que fusiona hechos similares
 
@@ -336,7 +353,7 @@ searchMemory("música", topK: 5)
 
 ```typescript
 // Hechos decaen según:
-relevance = baseRelevance * e^(-λ * timeElapsed) * accessCount
+relevance = (baseRelevance * e) ^ (-λ * timeElapsed * accessCount);
 
 // Cuando memoria llena, eliminar hechos con relevance < threshold
 ```
@@ -409,9 +426,9 @@ JSON.parse(localStorage.getItem('cube.memories'))
 
 ```javascript
 // DevTools → Console
-localStorage.removeItem('cube.memories')
+localStorage.removeItem("cube.memories");
 // O desde la app:
-import { clearAllMemories } from './services/CubeMemory.service';
+import { clearAllMemories } from "./services/CubeMemory.service";
 clearAllMemories();
 ```
 

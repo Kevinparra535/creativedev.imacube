@@ -309,6 +309,20 @@
    - Cost tracking (tokens, message count)
    - Personality-specific prompts
 
+7. ✅ **Dynamic Memory System**
+   - Tracks traits, facts, and preferences that evolve per conversation
+   - Regex-based extraction from messages
+   - LocalStorage persistence (key: `cube.memories`)
+   - Deduplication + limits (20 facts, 10 preferences)
+   - See `MEMORIA_DINAMICA.md` for architecture and examples
+
+8. ✅ **RAG (Retrieval-Augmented Generation)**
+   - 30+ knowledge base entries (lore, zones, physics, NPCs, mechanics, emotions)
+   - Keyword-based search with relevance scoring
+   - Dynamic context injection (top 3 fragments per query)
+   - Integrates with AI.service.ts before memory context
+   - See `RAG_SISTEMA.md` for complete docs, `RAG_GUIA_RAPIDA.md` for testing
+
 ---
 
 **📅 Última actualización**: 19 de noviembre de 2025  
