@@ -14,7 +14,9 @@ import {
   getCubeMemory,
   buildMemoryContext,
 } from "./CubeMemory.service";
+import { deriveNPCActions, applyNPCActions } from "./NPCInteractionBridge.service";
 import { buildWorldKnowledgeContext } from "../data/worldKnowledge";
+import { getArchetypeForPersonality, getModelNameForArchetype } from "../config/npcArchetypes";
 
 // ────────────────────────────────────────────────────────────────
 // TIPOS
@@ -255,13 +257,16 @@ IMPORTANTE:
         | undefined;
 
       if (this.config.backend === "local") {
+        // Selección dinámica de modelo local según personalidad/arquetipo
+        const archetype = getArchetypeForPersonality(personality);
+        const chosenModel = getModelNameForArchetype(archetype);
         // Usar servidor local (Ollama/backend propio)
         const response = await fetch(this.config.localUrl!, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             messages: this.conversationHistory.get(cubeId),
-            model: this.config.localModel,
+            model: chosenModel || this.config.localModel,
           }),
         });
 
@@ -319,9 +324,15 @@ IMPORTANTE:
       }
 
       // Agregar respuesta del asistente al historial
-      this.conversationHistory
-        .get(cubeId)!
-        .push({ role: "assistant", content: aiResponse });
+      this.conversationHistory.get(cubeId)!.push({ role: "assistant", content: aiResponse });
+
+      // Derivar acciones expresivas / físicas (bridge)
+      try {
+        const actions = deriveNPCActions(aiResponse, memory || undefined);
+        applyNPCActions(cubeId, actions);
+      } catch (bridgeErr) {
+        console.warn("NPCInteractionBridge error:", bridgeErr);
+      }
 
       return {
         success: true,

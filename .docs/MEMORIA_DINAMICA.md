@@ -434,6 +434,104 @@ clearAllMemories();
 
 ## Recursos
 
+## 5. Integración con el entorno 3D (nivel alto)
+
+Esta sección describe el flujo completo para integrar la memoria dinámica y el conocimiento RAG con el motor 3D (React Three Fiber + sistemas de física y navegación), siguiendo el pipeline típico de interacción.
+
+### 5.1 Flujo por interacción
+
+1. Selección / enfoque del NPC
+  - El jugador hace click en un cubo → `App.tsx` actualiza `selectedId`.
+  - `R3FCanvas.tsx` pasa `selectedId` a cada `Cube` → el cubo marcado activa estados visuales (Outline + face camera cuando idle).
+  - Estado físico disponible: posición (via Cannon), fase (`idle|squash|air|land|settle|navigating|observing`), modifiers activos (`activeModifiers`).
+
+2. Entrada del jugador (texto / voz → STT)
+  - `CubeInteraction.tsx` captura el mensaje y llama `handleUserMessage(cubeId, message)` en `App.tsx`.
+  - Se detecta intención y conceptos: `InteractionSystem.analyzeIntent()` + extracción de conceptos.
+
+3. Preparación de contexto
+  - Memoria: `getCubeMemory(cubeId)` → traits, facts, preferences.
+  - Mundo (RAG): `buildWorldKnowledgeContext(message)` → top 3 fragmentos relevantes.
+  - Situación actual: intención, conceptos, estado físico (opcional: fase + personalidad).
+  - Se ensamblan: `[CONOCIMIENTO DEL MUNDO]` + `[MEMORIA DEL CUBO]` + `[SITUACIÓN ACTUAL]` + mensaje.
+
+4. Llamada a Ollama
+  - `AI.service.ts.generateResponse()` envía `messages` (system prompt + contextual user block) al backend local (`/api/chat`).
+  - Modelfile ya contiene instrucciones base de roleplay (no se reenvía cada vez si backend lo fija como system).
+
+5. Recepción de respuesta
+  - Texto crudo del modelo se normaliza (trim + extracción de clave correcta).
+  - Se agrega al historial conversacional (máx 10 previos + system).
+
+6. Interpretación de respuesta → acciones 3D
+  - Nuevo puente: `NPCInteractionBridge.service.ts`:
+    - `deriveNPCActions(response, memory)` parsea palabras clave ("salto", "pensar", "feliz", "triste", "curioso", "frustrado", "brillar", "observando", etc.).
+    - Genera `NPCActions`: `{ emotion, jump, colorShift, modifier }`.
+    - `applyNPCActions(cubeId, actions)` invoca `updateCube()` del `Community` para inyectar un `activeModifier` con TTL (p.ej. 4s) y opcionalmente marcar un pulso de luz.
+  - El componente `Cube.tsx` ya observa cambios en modifiers vía `updateCube()` → puede mapearlos a:
+    - Cambios de color/emissive (p.ej. emotion: "feliz" → matiz amarillo)
+    - Activar una animación de salto adicional (`jump` → set `nextHopAt = now`)
+    - Cambiar jitter/breath amplitude (emociones intensas)
+    - Ajustar thought bubble temporal (e.g. mostrar "..." pensando)
+
+7. Actualización de memoria
+  - `extractMemoryFromMessage(message, intent)` detecta nuevas preferencias / instrucciones del jugador y actualiza: `updateCubeMemory(cubeId, { addTraits, addFacts, addPreferences })`.
+  - Opcional (futuro): `extractMemoryFromResponse(aiResponse)` para que el NPC consolide auto-descripciones ("me estoy volviendo más reflexivo") → agrega traits emergentes.
+
+### 5.2 Estructura de Capa
+
+```
+UI (CubeInteraction) → App.tsx → InteractionSystem + Memory + RAG → AI.service → NPCInteractionBridge → Community.updateCube → Cube.tsx render loop
+```
+
+### 5.3 Eventos Clave
+
+| Etapa | Fuente | Acción | Destino |
+|-------|--------|--------|---------|
+| Selección | click en 3D | setSelectedId | App.tsx state |
+| Mensaje jugador | input | handleUserMessage | AI.service + Memory |
+| Contexto | build | memoria + RAG | AI prompt |
+| Respuesta IA | fetch | aiResponse | NPCInteractionBridge |
+| Acción expresiva | derive | updateCube(activeModifiers) | Cube.tsx useFrame |
+| Persistencia | update | localStorage(cube.memories) | Memoria evolutiva |
+
+### 5.4 Ejemplo Concreto
+
+Entrada: "¿Qué hay más allá de las paredes? Salta si no lo sabes."
+
+1. Contexto RAG incluye fragmento `zone-003` (Las paredes son impenetrables).
+2. IA responde: "No puedo atravesarlas... así que solo salto y sigo pensando en ello.".
+3. `deriveNPCActions()` detecta "salto" → `jump: true`, detecta tono reflexivo → `emotion: "pensativo"`.
+4. `applyNPCActions()` añade modifier `{ name: "pensativo", expiresAt: now+4000 }` y dispara fuerza de salto.
+5. `Cube.tsx` ve modifier "pensativo" → aplica matiz azul y reduce jitter.
+6. Memoria: agrega fact "el jugador preguntó sobre las paredes"; preferencia si existiera.
+
+### 5.5 Extensiones Futuras
+
+- Streaming de tokens → animar cejas en tiempo real mientras llega la respuesta.
+- Sistema de mapeo semántico → Embeddings para acciones ("resplandece" → brillo + pulso de luz).
+- Buffer de acciones → Secuenciar múltiples efectos (color → salto → rotación hacia cámara).
+- Auto-reflexión → Post-proceso de respuesta para generar autotraits emergentes.
+
+### 5.6 Recomendaciones de Implementación
+
+1. Mantener `deriveNPCActions()` puro (sin efectos) → fácil test.
+2. Usar TTL corto en modifiers (2–6s) para evitar saturación de estado.
+3. Evitar mutar state del cubo en el render → usar `updateCube()` + refs + `useFrame`.
+4. Limitar longitud de respuestas IA (ya definido en Modelfile) para preservar rendimiento.
+5. Registrar métricas de acción (jump/emotion) para futuras analíticas.
+
+### 5.7 Hook Rápido (Pseudo-código)
+
+```ts
+// AI.service.ts (después de obtener aiResponse)
+const actions = deriveNPCActions(aiResponse, memory);
+applyNPCActions(cubeId, actions);
+```
+
+Con esto se completa el puente entre contexto cognitivo (memoria + conocimiento del mundo) y manifestación física/expresiva dentro del sandbox.
+
+
 - [Concepto original](https://github.com/Kevinparra535/creativedev.imacube/issues/XX)
 - Inspiración: NPC adaptativos en juegos (Red Dead Redemption 2, The Last of Us)
 - Paper: "Memory Networks for Conversational AI" (Weston et al.)

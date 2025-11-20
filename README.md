@@ -190,6 +190,48 @@ VITE_OPENAI_MODEL=gpt-4o-mini
 
 For more details, see [`.docs/OLLAMA_SETUP.md`](.docs/OLLAMA_SETUP.md).
 
+#### NPC Archetypes (Multi-Model Setup)
+
+In addition to the original single `imacube` model, the AI layer now supports distinct Ollama models per NPC archetype. Each personality maps to an archetype, which maps to a specific local model name. This enables differentiated tone, depth, and behavioral priors without sacrificing shared memory/RAG context.
+
+Archetypes & mapping:
+
+| Personality        | Archetype  | Model Name     | Style Summary |
+|--------------------|------------|----------------|---------------|
+| calm, neutral      | villager   | `villager-npc` | Practical, grounded, concise |
+| curious, extrovert | mentor     | `mentor-npc`   | Reflective, explanatory, encouraging |
+| chaotic            | trickster  | `trickster-npc`| Playful, surprising, mischievous |
+
+Create the three models (each has its own `Modelfile` system prompt + params):
+
+```pwsh
+# From project root
+ollama create villager-npc  -f server/models/Modelfile.villager
+ollama create mentor-npc    -f server/models/Modelfile.mentor
+ollama create trickster-npc -f server/models/Modelfile.trickster
+```
+
+Test individually:
+
+```pwsh
+ollama run villager-npc    # Should respond plainly, practical focus
+ollama run mentor-npc      # Should be reflective and guiding
+ollama run trickster-npc   # Should be playful, surprising
+```
+
+Environment variable `VITE_LOCAL_AI_MODEL` now acts as a fallback; the runtime dynamically selects the archetype model in `AI.service.ts` based on personality each request. If a mapped model is missing, it falls back to the configured `VITE_LOCAL_AI_MODEL`.
+
+Fallback behavior summary:
+- If `villager-npc` (for calm/neutral) not found → use `VITE_LOCAL_AI_MODEL`.
+- If `mentor-npc` (for curious/extrovert) not found → fallback.
+- If `trickster-npc` (for chaotic) not found → fallback.
+
+To verify selection, inspect network payloads or add a temporary `console.log(chosenModel)` inside `src/services/AI.service.ts` local branch.
+
+Optional enhancement (not yet enabled): add explicit `archetype` field to each cube in `cubes.config.ts` to override personality→archetype mapping for edge cases (e.g., a calm cube using mentor style). Ask before implementing if needed.
+
+Transient action integration: AI responses can now trigger one-shot physical/visual effects (`jump`, `colorShift`, `lightPulse`). These are parsed by the interaction bridge, stored as `transientAction` in the community registry, and consumed once by the `Cube` component.
+
 ## Key Files
 
 ### 3D Scene

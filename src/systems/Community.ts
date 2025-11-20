@@ -20,6 +20,13 @@ export interface PublicCubeState {
   capabilities: CapabilitiesState;
   /** Active transient behavioral/expressive modifiers with TTL */
   activeModifiers?: ActiveModifier[];
+  /** Acciones transitorias de una sola aplicación (colorShift / jump / light) */
+  transientAction?: {
+    colorShift?: string;
+    jump?: boolean;
+    emphasisLight?: boolean;
+    expiresAt: number;
+  };
   learningProgress?: { navigation: number; selfRighting: number };
   knowledge?: Record<string, number>;
   readingExperiences?: {
@@ -152,6 +159,9 @@ export function updateCube(id: string, partial: Partial<PublicCubeState>) {
           m.name !== modsNext[i].name || m.expiresAt !== modsNext[i].expiresAt
       ));
 
+  // Transient action change
+  const transientChanged = cur.transientAction !== next.transientAction;
+
   if (
     posChanged ||
     persChanged ||
@@ -160,7 +170,8 @@ export function updateCube(id: string, partial: Partial<PublicCubeState>) {
     lpChanged ||
     knowledgeChanged ||
     readingExpChanged ||
-    modsChanged
+    modsChanged ||
+    transientChanged
   ) {
     registry.set(id, next);
     notify();

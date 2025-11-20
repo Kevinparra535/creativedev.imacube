@@ -198,6 +198,8 @@ export default function Cube({
   const booksRead = useRef<string[]>([]);
   const conceptsLearned = useRef<Set<string>>(new Set());
   const selLightRef = useRef<PointLight | null>(null);
+  const lastTransientActionId = useRef<number>(0);
+  const lastColorShift = useRef<string | null>(null);
   const lastPruneRef = useRef(0);
   // Orientation/self-righting state
   const quatRef = useRef<[number, number, number, number]>([0, 0, 0, 1]);
@@ -428,6 +430,35 @@ export default function Cube({
   }, [conversationMessage, conversationTimestamp, currentPersonality, id]);
 
   useFrame((state, delta) => {
+        // Transient Action Consumption (jump / colorShift / emphasisLight)
+        const pubState = getCube(id);
+        const ta = pubState?.transientAction;
+        if (ta) {
+          if (ta.expiresAt < Date.now()) {
+            updateCube(id, { transientAction: undefined });
+          } else {
+            if (ta.jump && lastTransientActionId.current !== ta.expiresAt) {
+              api.applyImpulse([0, 3.2, 0], [0, 0, 0]);
+            }
+            if (ta.colorShift) {
+              lastColorShift.current = ta.colorShift;
+            }
+            if (ta.emphasisLight && selLightRef.current) {
+              selLightRef.current.intensity = 2.2;
+            }
+            if (ta.jump || ta.emphasisLight) {
+              updateCube(id, {
+                transientAction: {
+                  colorShift: ta.colorShift,
+                  jump: false,
+                  emphasisLight: false,
+                  expiresAt: ta.expiresAt,
+                },
+              });
+              lastTransientActionId.current = ta.expiresAt;
+            }
+          }
+        }
     const t = state.clock.elapsedTime;
 
     // Periodic pruning of expired modifiers (every ~2s)
@@ -1232,6 +1263,10 @@ export default function Cube({
         selected,
         hovered
       );
+      // Apply transient color shift tint if present
+      if (lastColorShift.current && pubState?.transientAction) {
+        vis = { ...vis, color: tintHex(vis.color, lastColorShift.current, 0.5) };
+      }
       // Modifier-based visual overlays (non-destructive layering)
       const mods = (props.activeModifiers as string[]) || [];
       if (mods.length) {
@@ -1454,6 +1489,9 @@ export default function Cube({
         selected,
         hovered
       );
+      if (lastColorShift.current && pubState?.transientAction) {
+        vis = { ...vis, color: tintHex(vis.color, lastColorShift.current, 0.5) };
+      }
       const mods = (props.activeModifiers as string[]) || [];
       if (mods.length) {
         if (mods.includes("sarcastic")) {
