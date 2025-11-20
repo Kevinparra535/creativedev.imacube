@@ -1,5 +1,5 @@
 import type { CubeData } from "../ui/components/CubeList";
-import type { PublicCubeState, ActiveModifier } from "../ui/scene/systems/Community";
+import type { PublicCubeState, ActiveModifier } from "../systems/Community";
 
 const STORAGE_KEY = "creativedev.cubes";
 const DYNAMIC_STATE_KEY = "creativedev.cubes.dynamicState";

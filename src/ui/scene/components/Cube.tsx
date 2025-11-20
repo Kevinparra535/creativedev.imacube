@@ -37,7 +37,7 @@ import {
   isBoredOf,
   recordVisit,
   createAttentionState,
-} from "../systems/AttentionSystem";
+} from "../../../systems/AttentionSystem";
 import {
   computeJumpDirection,
   getJumpStrength,
@@ -48,7 +48,7 @@ import {
   createNavigationState,
   startNavigation,
   stopNavigation,
-} from "../systems/NavigationSystem";
+} from "../../../systems/NavigationSystem";
 import {
   registerCube,
   unregisterCube,
@@ -56,11 +56,11 @@ import {
   getNeighbors,
   getCube,
   pruneExpiredModifiers,
-} from "../systems/Community";
+} from "../../../systems/Community";
 import {
   tryLearnFromNeighbors,
   spontaneousDiscovery,
-} from "../systems/SocialLearningSystem";
+} from "../../../systems/SocialLearningSystem";
 import {
   applyBookEffects,
   createKnowledgeState,
@@ -77,8 +77,8 @@ import {
   startReading,
   finishReading,
   type ReadingState,
-} from "../systems/BookReadingSystem";
-import type { BookContent } from "../data/booksLibrary";
+} from "../../../systems/BookReadingSystem";
+import type { BookContent } from "../../../data/booksLibrary";
 import type { Personality as ListPersonality } from "../../components/CubeList";
 
 import "../../styles/ThoughtBubble.css";

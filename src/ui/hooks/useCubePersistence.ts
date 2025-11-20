@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { saveDynamicStates } from "../../utils/cubeStorage";
-import { listAll } from "../scene/systems/Community";
+import { listAll } from "../../systems/Community";
 
 /**
  * Hook to automatically persist cube states to localStorage

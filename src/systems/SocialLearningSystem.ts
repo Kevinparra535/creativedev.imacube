@@ -1,4 +1,4 @@
-import type { Personality } from "../../components/CubeList";
+import type { Personality } from "../ui/components/CubeList";
 import type { Capability, CapabilitiesState, PublicCubeState } from "./Community";
 
 // Teaching willingness baseline by personality and social trait

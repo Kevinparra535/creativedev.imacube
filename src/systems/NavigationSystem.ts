@@ -7,7 +7,7 @@
  */
 
 import { Quaternion, Vector3 } from 'three';
-import type { Personality } from '../../components/CubeList';
+import type { Personality } from '../ui/components/CubeList';
 
 // ────────────────────────────────────────────────────────────────
 // TYPES

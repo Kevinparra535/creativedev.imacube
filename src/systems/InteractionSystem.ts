@@ -5,7 +5,7 @@
  * Implementa el bucle cognitivo: Percibido → Interpretado → Procesado → Expresado
  */
 
-import type { Personality } from "../../components/CubeList";
+import type { Personality } from "../ui/components/CubeList";
 
 // ────────────────────────────────────────────────────────────────
 // TIPOS DE INTENCIÓN

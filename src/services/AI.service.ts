@@ -5,8 +5,11 @@
  * Mantiene el contexto de conversación y personalidad del cubo.
  */
 
-import type { Personality } from "../../components/CubeList";
-import type { MessageIntent, ExtractedConcepts } from "./InteractionSystem";
+import type { Personality } from "../ui/components/CubeList";
+import type {
+  MessageIntent,
+  ExtractedConcepts,
+} from "../systems/InteractionSystem";
 
 // ────────────────────────────────────────────────────────────────
 // TIPOS
@@ -17,6 +20,9 @@ export interface OpenAIConfig {
   model?: string;
   maxTokens?: number;
   temperature?: number;
+  backend?: "openai" | "local";
+  localUrl?: string;
+  localModel?: string;
 }
 
 export interface ConversationMessage {
@@ -105,6 +111,9 @@ export class OpenAIService {
       model: "gpt-4o-mini",
       maxTokens: 150,
       temperature: 0.8,
+      backend: "openai",
+      localUrl: "http://localhost:3001/api/chat",
+      localModel: "llama3.1",
       ...config,
     };
     this.conversationHistory = new Map();
@@ -212,37 +221,77 @@ IMPORTANTE:
         this.conversationHistory.set(cubeId, [systemPrompt, ...recentMessages]);
       }
 
-      // Llamar a OpenAI API
-      const response = await fetch(
-        "https://api.openai.com/v1/chat/completions",
-        {
+      let aiResponse: string | undefined;
+      let usageData:
+        | {
+            prompt_tokens?: number;
+            completion_tokens?: number;
+            total_tokens?: number;
+          }
+        | undefined;
+
+      if (this.config.backend === "local") {
+        // Usar servidor local (Ollama/backend propio)
+        const response = await fetch(this.config.localUrl!, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${this.config.apiKey}`,
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model: this.config.model,
             messages: this.conversationHistory.get(cubeId),
-            max_tokens: this.config.maxTokens,
-            temperature: this.config.temperature,
-            top_p: 1,
-            frequency_penalty: 0.5,
-            presence_penalty: 0.3,
+            model: this.config.localModel,
           }),
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`Error del backend local: ${text}`);
         }
-      );
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.message || "Error en la API de OpenAI");
-      }
+        const data = await response.json();
+        // Intentar extraer texto desde varias claves comunes
+        aiResponse =
+          (typeof data === "string" ? data : undefined) ||
+          data?.response?.trim?.() ||
+          data?.reply?.trim?.() ||
+          data?.message?.trim?.() ||
+          data?.text?.trim?.();
 
-      const data = await response.json();
-      const aiResponse = data.choices[0]?.message?.content?.trim();
+        if (!aiResponse) {
+          throw new Error("Respuesta vacía del backend local");
+        }
+      } else {
+        // Llamar a OpenAI API
+        const response = await fetch(
+          "https://api.openai.com/v1/chat/completions",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${this.config.apiKey}`,
+            },
+            body: JSON.stringify({
+              model: this.config.model,
+              messages: this.conversationHistory.get(cubeId),
+              max_tokens: this.config.maxTokens,
+              temperature: this.config.temperature,
+              top_p: 1,
+              frequency_penalty: 0.5,
+              presence_penalty: 0.3,
+            }),
+          }
+        );
 
-      if (!aiResponse) {
-        throw new Error("Respuesta vacía de OpenAI");
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error?.message || "Error en la API de OpenAI");
+        }
+
+        const data = await response.json();
+        aiResponse = data.choices[0]?.message?.content?.trim();
+
+        if (!aiResponse) {
+          throw new Error("Respuesta vacía de OpenAI");
+        }
+        usageData = data.usage;
       }
 
       // Agregar respuesta del asistente al historial
@@ -253,11 +302,14 @@ IMPORTANTE:
       return {
         success: true,
         response: aiResponse,
-        usage: {
-          promptTokens: data.usage?.prompt_tokens || 0,
-          completionTokens: data.usage?.completion_tokens || 0,
-          totalTokens: data.usage?.total_tokens || 0,
-        },
+        // Nota: uso de tokens solo disponible en OpenAI; en local omitimos métricas
+        usage: usageData
+          ? {
+              promptTokens: usageData.prompt_tokens || 0,
+              completionTokens: usageData.completion_tokens || 0,
+              totalTokens: usageData.total_tokens || 0,
+            }
+          : undefined,
       };
     } catch (error) {
       console.error("Error en OpenAIService:", error);

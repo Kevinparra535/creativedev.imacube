@@ -1,4 +1,4 @@
-import type { Personality } from "../../components/CubeList";
+import type { Personality } from "../ui/components/CubeList";
 
 export type Capability = "selfRighting" | "navigation";
 

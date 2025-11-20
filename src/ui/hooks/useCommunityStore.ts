@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { subscribe, listAll } from "../scene/systems/Community";
+import { subscribe, listAll } from "../../systems/Community";
 
 export function useCommunityCubes() {
   return useSyncExternalStore(

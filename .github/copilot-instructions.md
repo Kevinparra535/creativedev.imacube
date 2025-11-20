@@ -62,7 +62,7 @@ import publicAsset from '/public-asset.svg'  // Public folder assets use /
 ### R3F Scene Structure (3D)
 - **Scene file**: `src/ui/scene/R3FCanvas.tsx`
 - **Components**: `src/ui/scene/components/Cube.tsx`, `src/ui/scene/components/Plane.tsx`
-- **Config**: `src/ui/scene/cubesConfig.ts` (centralized cube configuration array)
+- **Config**: `src/ui/scene/cubes.config.ts` (centralized cube configuration array)
 - **Objects**: `src/ui/scene/objects/{BubbleEyes,DotEyes}.tsx` (ojos intercambiables por props con cejas animadas), `src/ui/scene/objects/Books.tsx` (libros físicos aleatorios)
 - **Visual**: `src/ui/scene/visual/visualState.ts` (mapea personalidad/estado → material y micro-animaciones)
 - **UI Components**: 
@@ -282,7 +282,7 @@ Uses flat config with these plugins:
 
 ## Configuration Files
 
-- Config: `src/config/cubesConfig.ts`
+- Config: `src/config/cubes.config.ts`
 	- 5 cubos con posiciones dispersas para fomentar exploración:
 	  - c1 (Cube Zen): [-30, 8, -30] calm/bubble
 	  - c2 (Cube Social): [30, 7, -30] extrovert/dot

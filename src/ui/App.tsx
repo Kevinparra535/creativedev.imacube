@@ -20,16 +20,17 @@ import {
   extractConcepts,
   generateResponse,
   generateVisualEffects,
-} from "./scene/systems/InteractionSystem";
-import { updateCube, getCube } from "./scene/systems/Community";
-import type { ActiveModifier } from "./scene/systems/Community";
+} from "../systems/InteractionSystem";
+import { updateCube, getCube } from "../systems/Community";
+import type { ActiveModifier } from "../systems/Community";
 import {
   initializeOpenAI,
   getOpenAIService,
   isOpenAIInitialized,
-} from "./scene/systems/OpenAIService";
+} from "../services/AI.service";
 import { getOpenAIConfig, isOpenAIConfigured } from "../config/openai.config";
 import type { Personality } from "./components/CubeList";
+import { updateIdentityWithHints } from "../systems/IdentityState";
 
 // Cache de respuestas para evitar llamadas repetidas
 const responseCache = new Map<string, string>();
@@ -122,6 +123,9 @@ function App() {
           model: config.model,
           maxTokens: config.maxTokens,
           temperature: config.temperature,
+          backend: config.backend,
+          localUrl: config.localUrl,
+          localModel: config.localModel,
         });
         setUseAI(true);
         setAiConfigured(true);
@@ -217,10 +221,11 @@ function App() {
         });
         // Keep also non-hint existing ones that haven't expired yet
         const merged = Object.values(map).filter((m) => m.expiresAt > now);
-          updateCube(selectedId, { activeModifiers: merged });
-          // Identity evolution tracking (hint counters + traits vector)
-          const personality: Personality = (curState?.personality as Personality) || "neutral";
-          updateIdentityWithHints(selectedId, personality, hints);
+        updateCube(selectedId, { activeModifiers: merged });
+        // Identity evolution tracking (hint counters + traits vector)
+        const personality: Personality =
+          (curState?.personality as Personality) || "neutral";
+        updateIdentityWithHints(selectedId, personality, hints);
       }
 
       // 3. Get cube personality

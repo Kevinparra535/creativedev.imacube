@@ -1,7 +1,7 @@
 import type { CameraControls } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useRef, useEffect } from "react";
-import { subscribe, getCube } from "../scene/systems/Community";
+import { subscribe, getCube } from "../../systems/Community";
 
 export function FollowCamera({
   selectedId,

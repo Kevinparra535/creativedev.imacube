@@ -104,7 +104,7 @@ npm run lint     # Run ESLint on entire codebase
 - `src/ui/scene/components/Plane.tsx` — Static planes for floor/walls/ceiling.
 - `src/ui/scene/objects/Books.tsx` — Randomly spawned physics books with collision/bounce dynamics.
 - `src/ui/scene/objects/{BubbleEyes,DotEyes}.tsx` — Eye styles with blink, gaze tracking, and mood-based eyebrows.
-- `src/config/cubesConfig.ts` — Centralized cube configuration (dispersed spawn positions).
+- `src/config/cubes.config.ts` — Centralized cube configuration (dispersed spawn positions).
 - `src/config/openai.config.ts` — OpenAI API configuration and environment variables.
 - `src/ui/scene/visual/visualState.ts` — Map `personality + mood(thought)` to material/anim targets.
 - `src/ui/scene/systems/Community.ts` — Global registry with pub-sub, RAF throttling, change detection.

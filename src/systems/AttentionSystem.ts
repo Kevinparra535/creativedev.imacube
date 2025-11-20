@@ -7,7 +7,7 @@
  */
 
 import type { Object3D } from 'three';
-import type { Personality } from '../../components/CubeList';
+import type { Personality } from '../ui/components/CubeList';
 
 // ────────────────────────────────────────────────────────────────
 // TYPES
