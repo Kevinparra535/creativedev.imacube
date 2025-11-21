@@ -166,8 +166,8 @@ export function updateCube(id: string, partial: Partial<PublicCubeState>) {
   const transientChanged = cur.transientAction !== next.transientAction;
 
   // Behavior state change (shallow compare key fields)
-  const bsCur = (cur as any).behaviorState;
-  const bsNext = (next as any).behaviorState;
+  const bsCur = cur.behaviorState;
+  const bsNext = next.behaviorState;
   const behaviorChanged = bsCur !== bsNext && !!bsNext && (
     bsCur?.goal !== bsNext.goal ||
     bsCur?.intent !== bsNext.intent ||

@@ -12,7 +12,6 @@ interface AIStatusProps {
   isConfigured: boolean;
   isEnabled: boolean;
   onToggle: (enabled: boolean) => void;
-  totalTokens?: number;
   messageCount?: number;
   onReset?: () => void;
 }
@@ -21,12 +20,9 @@ export default function AIStatus({
   isConfigured,
   isEnabled,
   onToggle,
-  totalTokens = 0,
   messageCount = 0,
   onReset,
 }: AIStatusProps) {
-  // Calcular costo estimado (gpt-4o-mini: $0.15/1M input, $0.60/1M output, promedio ~$0.30/1M)
-  const estimatedCost = (totalTokens / 1_000_000) * 0.3;
 
   const handleReset = () => {
     if (
@@ -42,7 +38,7 @@ export default function AIStatus({
     <AIStatusPanel>
       <StatusRow>
         <StatusIndicator $active={isConfigured} />
-        <StatusLabel>OpenAI</StatusLabel>
+        <StatusLabel>IA Local</StatusLabel>
         <StatusValue>
           {isConfigured ? "Configurado" : "No configurado"}
         </StatusValue>
@@ -54,28 +50,18 @@ export default function AIStatus({
         <StatusValue>{isEnabled ? "AI" : "Template"}</StatusValue>
       </StatusRow>
 
-      {isConfigured && totalTokens > 0 && (
-        <>
-          <StatusRow>
-            <StatusLabel>Mensajes</StatusLabel>
-            <StatusValue>{messageCount}</StatusValue>
-          </StatusRow>
-
-          <StatusRow>
-            <StatusLabel>Tokens</StatusLabel>
-            <StatusValue>{totalTokens.toLocaleString()}</StatusValue>
-          </StatusRow>
-
-          <StatusRow>
-            <StatusLabel>Costo est.</StatusLabel>
-            <StatusValue>${estimatedCost.toFixed(4)}</StatusValue>
-          </StatusRow>
-        </>
+      {isConfigured && messageCount > 0 && (
+        <StatusRow>
+          <StatusLabel>Mensajes</StatusLabel>
+          <StatusValue>{messageCount}</StatusValue>
+        </StatusRow>
       )}
 
       {isConfigured && (
         <ToggleButton $active={isEnabled} onClick={() => onToggle(!isEnabled)}>
-          {isEnabled ? "🤖 Usando OpenAI" : "📝 Usando Templates"}
+          {
+isEnabled ? "🤖 Usando IA Local" : "📝 Usando Templates"
+}
         </ToggleButton>
       )}
 

@@ -1030,8 +1030,8 @@ export default function Cube({
             pulseStrength.current = 0.6; // small arrival pulse
 
             // Check if book has full content and decide whether to read
-            const bookContent = (att.currentTarget.object as any)?.userData
-              ?.bookContent as BookContent | undefined;
+            const bookContent = (att.currentTarget.object as { userData?: { bookContent?: BookContent } })?.userData
+              ?.bookContent;
             if (bookContent) {
               const wantsToRead = decideTORead(
                 bookContent,

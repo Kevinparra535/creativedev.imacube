@@ -16,37 +16,25 @@ import {
 } from "./CubeMemory.service";
 import { deriveNPCActions, applyNPCActions } from "./NPCInteractionBridge.service";
 import { buildWorldKnowledgeContext } from "../data/worldKnowledge";
-import { getArchetypeForPersonality, getModelNameForArchetype } from "../config/npcArchetypes";
 import { planBehavior } from "./BehaviorPlanner.service";
+
+// Configuración simple de Ollama local
+const LOCAL_AI_URL = import.meta.env.VITE_LOCAL_AI_URL || "http://localhost:3001/api/chat";
+const LOCAL_AI_MODEL = import.meta.env.VITE_LOCAL_AI_MODEL || "llama3.1";
 
 // ────────────────────────────────────────────────────────────────
 // TIPOS
 // ────────────────────────────────────────────────────────────────
-
-export interface OpenAIConfig {
-  apiKey: string;
-  model?: string;
-  maxTokens?: number;
-  temperature?: number;
-  backend?: "openai" | "local";
-  localUrl?: string;
-  localModel?: string;
-}
 
 export interface ConversationMessage {
   role: "system" | "user" | "assistant";
   content: string;
 }
 
-export interface OpenAIResponse {
+export interface AIResponse {
   success: boolean;
   response?: string;
   error?: string;
-  usage?: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
 }
 
 // ────────────────────────────────────────────────────────────────
@@ -109,21 +97,11 @@ Estilo de respuesta: Objetivo, informativo, sin adornos emocionales. Frases clar
 // CLASE DE SERVICIO
 // ────────────────────────────────────────────────────────────────
 
-export class OpenAIService {
-  private config: OpenAIConfig;
+export class LocalAIService {
   private conversationHistory: Map<string, ConversationMessage[]>;
   private readonly MAX_HISTORY = 10; // Últimos 10 mensajes
 
-  constructor(config: OpenAIConfig) {
-    this.config = {
-      model: "gpt-4o-mini",
-      maxTokens: 150,
-      temperature: 0.8,
-      backend: "openai",
-      localUrl: "http://localhost:3001/api/chat",
-      localModel: "llama3.1",
-      ...config,
-    };
+  constructor() {
     this.conversationHistory = new Map();
   }
 
@@ -194,7 +172,7 @@ IMPORTANTE:
   }
 
   /**
-   * Genera una respuesta usando OpenAI o backend local con memoria dinámica
+   * Genera una respuesta usando backend local (Ollama) con memoria dinámica
    */
   async generateResponse(
     cubeId: string,
@@ -203,7 +181,7 @@ IMPORTANTE:
     cubeName: string,
     intent?: MessageIntent,
     concepts?: ExtractedConcepts
-  ): Promise<OpenAIResponse> {
+  ): Promise<AIResponse> {
     try {
       // Inicializar conversación si no existe
       if (!this.conversationHistory.has(cubeId)) {
@@ -248,81 +226,47 @@ IMPORTANTE:
         this.conversationHistory.set(cubeId, [systemPrompt, ...recentMessages]);
       }
 
-      let aiResponse: string | undefined;
-      let usageData:
-        | {
-            prompt_tokens?: number;
-            completion_tokens?: number;
-            total_tokens?: number;
-          }
-        | undefined;
+      // Usar servidor local (Ollama)
+      const response = await fetch(LOCAL_AI_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: this.conversationHistory.get(cubeId),
+          model: LOCAL_AI_MODEL,
+        }),
+      });
 
-      if (this.config.backend === "local") {
-        // Selección dinámica de modelo local según personalidad/arquetipo
-        const archetype = getArchetypeForPersonality(personality);
-        const chosenModel = getModelNameForArchetype(archetype);
-        // Usar servidor local (Ollama/backend propio)
-        const response = await fetch(this.config.localUrl!, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            messages: this.conversationHistory.get(cubeId),
-            model: chosenModel || this.config.localModel,
-          }),
-        });
-
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(`Error del backend local: ${text}`);
-        }
-
-        const data = await response.json();
-        // Intentar extraer texto desde varias claves comunes
-        aiResponse =
-          (typeof data === "string" ? data : undefined) ||
-          data?.response?.trim?.() ||
-          data?.reply?.trim?.() ||
-          data?.message?.trim?.() ||
-          data?.text?.trim?.();
-
-        if (!aiResponse) {
-          throw new Error("Respuesta vacía del backend local");
-        }
-      } else {
-        // Llamar a OpenAI API
-        const response = await fetch(
-          "https://api.openai.com/v1/chat/completions",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${this.config.apiKey}`,
-            },
-            body: JSON.stringify({
-              model: this.config.model,
-              messages: this.conversationHistory.get(cubeId),
-              max_tokens: this.config.maxTokens,
-              temperature: this.config.temperature,
-              top_p: 1,
-              frequency_penalty: 0.5,
-              presence_penalty: 0.3,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error?.message || "Error en la API de OpenAI");
-        }
-
-        const data = await response.json();
-        aiResponse = data.choices[0]?.message?.content?.trim();
-
-        if (!aiResponse) {
-          throw new Error("Respuesta vacía de OpenAI");
-        }
-        usageData = data.usage;
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Error del backend local: ${text}`);
       }
+
+      const data = await response.json();
+      
+      // Normalización robusta de respuesta local (Ollama proxy)
+      const extractLocalContent = (raw: unknown): string | undefined => {
+        if (!raw) return undefined;
+        if (typeof raw === "string") return raw.trim();
+        
+        // Type guard para objeto con propiedades dinámicas
+        if (typeof raw !== "object") return undefined;
+        
+        // Ollama format: { message: { role, content }, ... }
+        const maybeOllamaFormat = raw as { message?: { content?: unknown } };
+        const c = maybeOllamaFormat.message?.content;
+        if (typeof c === "string" && c.trim()) return c.trim();
+        
+        // Alternate keys (custom backends)
+        const maybeRecord = raw as Record<string, unknown>;
+        for (const key of ["response", "reply", "text"]) {
+          const v = maybeRecord[key];
+          if (typeof v === "string" && v.trim()) return v.trim();
+        }
+        return undefined;
+      };
+      
+      const aiResponse = extractLocalContent(data);
+      if (!aiResponse) throw new Error("Respuesta vacía del backend local");
 
       // Agregar respuesta del asistente al historial
       this.conversationHistory.get(cubeId)!.push({ role: "assistant", content: aiResponse });
@@ -345,14 +289,6 @@ IMPORTANTE:
       return {
         success: true,
         response: aiResponse,
-        // Nota: uso de tokens solo disponible en OpenAI; en local omitimos métricas
-        usage: usageData
-          ? {
-              promptTokens: usageData.prompt_tokens || 0,
-              completionTokens: usageData.completion_tokens || 0,
-              totalTokens: usageData.total_tokens || 0,
-            }
-          : undefined,
       };
     } catch (error) {
       console.error("Error en OpenAIService:", error);
@@ -377,53 +313,38 @@ IMPORTANTE:
     return this.conversationHistory.get(cubeId);
   }
 
-  /**
-   * Actualiza la API key
-   */
-  updateApiKey(apiKey: string): void {
-    this.config.apiKey = apiKey;
-  }
 
-  /**
-   * Actualiza la configuración
-   */
-  updateConfig(config: Partial<OpenAIConfig>): void {
-    this.config = { ...this.config, ...config };
-  }
 }
 
 // ────────────────────────────────────────────────────────────────
 // INSTANCIA SINGLETON
 // ────────────────────────────────────────────────────────────────
 
-let openAIServiceInstance: OpenAIService | null = null;
+let aiServiceInstance: LocalAIService | null = null;
 
 /**
- * Inicializa el servicio de OpenAI (llamar al inicio de la app)
+ * Inicializa el servicio de IA local (llamar al inicio de la app)
  */
-export function initializeOpenAI(
-  apiKey: string,
-  config?: Partial<OpenAIConfig>
-): OpenAIService {
-  openAIServiceInstance = new OpenAIService({ apiKey, ...config });
-  return openAIServiceInstance;
+export function initializeAI(): LocalAIService {
+  aiServiceInstance = new LocalAIService();
+  return aiServiceInstance;
 }
 
 /**
  * Obtiene la instancia del servicio (debe haberse inicializado primero)
  */
-export function getOpenAIService(): OpenAIService {
-  if (!openAIServiceInstance) {
+export function getAIService(): LocalAIService {
+  if (!aiServiceInstance) {
     throw new Error(
-      "OpenAIService no inicializado. Llama a initializeOpenAI() primero."
+      "LocalAIService no inicializado. Llama a initializeAI() primero."
     );
   }
-  return openAIServiceInstance;
+  return aiServiceInstance;
 }
 
 /**
  * Verifica si el servicio está inicializado
  */
-export function isOpenAIInitialized(): boolean {
-  return openAIServiceInstance !== null;
+export function isAIInitialized(): boolean {
+  return aiServiceInstance !== null;
 }

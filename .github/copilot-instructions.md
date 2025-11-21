@@ -2,32 +2,83 @@
 
 ## Project Overview
 
-React 19.2 + TypeScript + Vite (via `rolldown-vite` override). Modern ESM, strict TS, flat ESLint. Includes a Three.js scene powered by React Three Fiber with physics, postprocessing, thought bubbles, cartoon eyes with eyebrows, self-righting cubes, and a ReactFlow-powered knowledge graph UI.
+Interactive 3D sandbox with AI-powered NPCs (cubes) that learn, explore, and communicate. Built with React 19 + R3F + Cannon physics + local AI (Ollama) + dynamic memory system. Each cube has personality, visual expressions, autonomous navigation, and evolving memory through conversations.
 
 ## Key Architecture Decisions
 
-- **Rolldown Integration**: Uses `rolldown-vite@7.2.2` instead of standard Vite for improved build performance. This is enforced via `package.json` overrides.
-- **React 19**: Running the latest React with new features like `react-jsx` transform and enhanced StrictMode.
-- **Flat ESLint Config**: Uses the new flat config format (`eslint.config.js`) with `defineConfig` and `globalIgnores` - avoid legacy `.eslintrc` patterns.
-- **TypeScript Project References**: Uses composite config with `tsconfig.app.json` (app code) and `tsconfig.node.json` (build tooling).
-- **3D Scene & Physics**: `@react-three/fiber` + `@react-three/cannon` for physics, `@react-three/drei` helpers, and `@react-three/postprocessing` for outlines/selection.
-- **UI Framework**: Styled-components v6 with transient props (`$propName`) for dynamic styling.
-- **UI Layout**: Chat panel (aside izquierdo), tabs horizontales + ReactFlow graph (footer).
-- **Knowledge Graph**: ReactFlow (`@xyflow/react`) for interactive node visualization in footer.
-- **AI Integration**: Local-first backend (default) with optional OpenAI fallback; personality-specific prompts.
+- **Rolldown Integration**: Uses `rolldown-vite@7.2.2` (not standard Vite) enforced via `package.json` overrides
+- **React 19 Purity**: All random generation MUST use `useState(() => ...)` initializer, never in render/useMemo
+- **ESM-only**: `"type": "module"` in package.json; use `import type` for TypeScript types
+- **Flat ESLint**: Uses `eslint.config.js` (not `.eslintrc`) with `globalIgnores: ['dist/']`
+- **Physics**: Cannon bodies via `@react-three/cannon`; subscribe to APIs in `useEffect`, apply forces in `useFrame`
+- **Community Registry**: Centralized pub-sub state in `src/systems/Community.ts` with RAF throttling + change detection
+- **AI Layer**: Multi-model local-first (Ollama) with personality→archetype→model mapping (`npcArchetypes.ts`)
+- **Dynamic Memory**: Per-cube persistent memory (traits/facts/preferences) evolves with each conversation
+- **Behavior Planning**: Separate LLM-powered planner (`BehaviorPlanner.service.ts`) returns JSON decisions with TTL
+- **RAG Knowledge Base**: 30+ world facts in `worldKnowledge.ts` for context-aware responses
+
+## Critical Data Flow Patterns
+
+### NPC Conversation Pipeline
+1. **User input** → `CubeInteraction.tsx` (UI)
+2. **Intent analysis** → `InteractionSystem.ts` extracts concepts/emotions
+3. **Memory retrieval** → `CubeMemory.service.ts` loads traits/facts from localStorage
+4. **RAG context** → `worldKnowledge.ts` injects relevant sandbox knowledge
+5. **Archetype selection** → `npcArchetypes.ts` maps personality→model (villager/mentor/trickster)
+6. **AI request** → `AI.service.ts` sends enriched prompt to local Ollama (or OpenAI fallback)
+7. **Response parsing** → `NPCInteractionBridge.service.ts` derives actions (jump/colorShift/emotion)
+8. **Behavior planning** → `BehaviorPlanner.service.ts` (parallel) generates JSON decision with TTL
+9. **State update** → `Community.updateCube()` triggers RAF-throttled notification
+10. **Visual response** → `Cube.tsx` consumes transientAction + behaviorState + activeModifiers
+
+### Physics Subscription Pattern (React 19 compliant)
+```tsx
+// ❌ WRONG - ref access during render
+const [ref, api] = useBox(() => ({ mass: 1 }));
+const pos = api.position.get(); // React 19 purity violation
+
+// ✅ CORRECT - subscribe in useEffect
+const posRef = useRef<[number, number, number]>([0, 0, 0]);
+useEffect(() => {
+  const unsub = api.position.subscribe(v => { posRef.current = v; });
+  return unsub;
+}, [api]);
+```
+
+### Community Registry Change Detection
+Only notifies subscribers when these fields change:
+- `position`, `personality`, `socialTrait`, `capabilities`
+- `learningProgress`, `knowledge`, `readingExperiences.conceptsLearned`
+- `activeModifiers`, `transientAction`, `behaviorState`
+
+Deep comparison for arrays (e.g., conceptsLearned length check).
 
 ## Development Workflows
 
-### Running the Project
-```bash
-npm run dev          # Start dev server with HMR
-npm run build        # TypeScript check + production build
-npm run preview      # Preview production build locally
-npm run lint         # Run ESLint on entire codebase
+### Running Locally
+```pwsh
+npm run dev          # Frontend on :5173
+cd server && npm start  # Ollama proxy on :3001 (required for AI)
+ollama serve         # Ollama on :11434 (backend for proxy)
+```
+
+### Setting Up Local AI (Required for Conversations)
+```pwsh
+ollama pull llama3.1
+ollama create villager-npc -f server/models/Modelfile.villager
+ollama create mentor-npc -f server/models/Modelfile.mentor
+ollama create trickster-npc -f server/models/Modelfile.trickster
+```
+
+### Environment Variables (.env)
+```env
+VITE_AI_BACKEND=local  # or "openai"
+VITE_LOCAL_AI_URL=http://localhost:3001/api/chat
+VITE_LOCAL_AI_MODEL=llama3.1  # fallback if archetype models missing
 ```
 
 ### Build Process
-The build runs TypeScript compilation first (`tsc -b`) before Vite build - both must pass. TypeScript uses `noEmit: true` since Vite handles transpilation.
+`npm run build` → `tsc -b` (type check) → `vite build` (both must pass)
 
 ## TypeScript Configuration
 
@@ -54,10 +105,52 @@ import logo from './assets/logo.svg'
 import publicAsset from '/public-asset.svg'  // Public folder assets use /
 ```
 
-### Component Structure
-- **Entry Point**: `src/main.tsx` renders into `#root` div with StrictMode wrapper
-- **Styles**: Component-level CSS files (e.g., `App.css`) co-located with components
-- **Assets**: Component assets in `src/assets/`, public static files in `public/`
+### React 19 Random Generation Pattern
+```tsx
+// ❌ WRONG - violates purity constraints
+const Books = () => {
+  const count = useMemo(() => Math.random() * 10, []); // Impure initializer
+  // ...
+}
+
+// ✅ CORRECT - use useState initializer
+const Books = () => {
+  const [positions] = useState(() => 
+    Array.from({ length: 20 }, () => [
+      Math.random() * 60 - 30,
+      Math.random() * 10 + 5,
+      Math.random() * 60 - 30,
+    ])
+  );
+}
+```
+
+### Community Update Pattern
+```tsx
+// Always use updateCube() for state changes - triggers RAF-throttled notifications
+import { updateCube } from '../systems/Community';
+
+updateCube(cubeId, {
+  position: [x, y, z],
+  readingExperiences: {
+    ...existing,
+    conceptsLearned: [...existing.conceptsLearned, 'Dios', 'Fe']
+  }
+});
+```
+
+### Memory Evolution Pattern
+```tsx
+import { updateCubeMemory, extractMemoryFromMessage } from './CubeMemory.service';
+
+// After AI response, update memory with new learnings
+const memoryUpdate = extractMemoryFromMessage(userMessage, intent);
+updateCubeMemory(cubeId, {
+  ...memoryUpdate,
+  addTraits: ['está aprendiendo sobre filosofía'],
+  addFacts: [`el jugador mencionó "${keyword}"`]
+});
+```
 
 ### R3F Scene Structure (3D)
 - **Scene file**: `src/ui/scene/R3FCanvas.tsx`
@@ -82,71 +175,6 @@ import publicAsset from '/public-asset.svg'  // Public folder assets use /
 - **Books**: Individual physics bodies (`useBox`) spawned randomly within sandbox bounds; uses `useState` initializer to generate random positions/rotations/colors once at mount (React 19 purity compliance).
 - **Postprocessing**: `EffectComposer` + `Outline` for hover/selection highlight.
 
-### Interaction & Animation Pattern
-- **Selection**: Parent (`App.tsx`) tracks `selectedId` state shared between `R3FCanvas`, `CubeList`, and `CubeFooter`. Click cube selects; click vacío (`onPointerMissed`) deselecciona.
-- **Camera follow system**: `FollowCamera` component with smooth lerp (k=2.5*delta), preserves user rotation via controlstart/controlend events, toggleable with Tab key.
-- **Camera lock toggle**: `cameraLocked` state managed at `App.tsx`, passed to `R3FCanvas` and `CubeInteraction`. Tab key context-aware: toggle lock when cube selected, hop when no selection.
-- **Manual hop test**: Parent listens to `Tab` and increments a `hopSignal` counter; `Cube` detects changes to trigger jump when `selected`.
-- **Squash & Stretch**: `Cube` uses `useFrame` to lerp `scale` toward phase targets:
-	- Pre-salto: `[1.25, 0.75, 1.25]`
-	- En aire: `[0.9, 1.1, 0.9]`
-	- Aterrizaje: `[1.3, 0.7, 1.3]` → luego ` [1,1,1]`
-- **Impulso físico**: `api.applyImpulse([dx, 3.2, dz], [0,0,0])` con `dx/dz` aleatorios (en modo auto) o sólo al presionar espacio (modo test).
-- **Self-righting (auto-enderezado)**: Suscríbete a `api.quaternion`, calcula el `tilt` mediante el up-vector (`acos(up.y)`), genera un objetivo vertical preservando yaw y aplica `Quaternion.slerp` con amortiguación de `angularVelocity` para estabilizar.
-- **Ojos intercambiables**: `Cube` acepta `eyeStyle={"bubble"|"dot"}` y renderiza `BubbleEyes` o `DotEyes` sobre la cara +Z.
-- **Cejas animadas**: Ambos estilos de ojos incluyen cejas (`boxGeometry` horizontal) con 8 expresiones de mood (happy, sad, angry, curious, prep, air, land, neutral). Las cejas se animan mediante `useFrame` con lerp suave de posición Y y rotación Z.
-- **Mood calculation**: `Cube` calcula mood con 3 prioridades:
-	1. **Fases físicas** (preparando salto → prep, impacto → land)
-	2. **Estados cognitivos** (keywords en thought: "weee/!" → happy, "triste" → sad, "grr/frustrado" → angry, "hmm/¿/?" → curious)
-	3. **Personalidad baseline** (extrovert → happy, chaotic → angry, curious → curious cuando idle)
-- **Confusion wobble**: Detecta "confusión", "¿", "?", "no entiendo" en thought → aplica sin(time*6)*0.03 a scale X/Z.
-- **Face camera**: Cuando selected + !navigating + idle/settle/observing → slerp quaternion hacia yaw de cámara (rate: 4*delta).
-- **Point light**: Child component en Cube seleccionado, intensity = 0.6 + 1.6*pulseStrength, pulsa con aprendizaje.
-- **Chaotic flicker**: Personality chaotic → emissiveIntensity += sin(time*18)*0.06 para efecto nervioso.
-- **Book completion flash**: pulseStrength = max(current, 1) al terminar lectura → dispara luz y emissive.
-- **Personalidad/estado visual**: `Cube` acepta `personality` (`calm|extrovert|curious|chaotic|neutral`). `computeVisualTargets(thought, personality, selected, hovered)` devuelve `{ color, emissiveIntensity, roughness, metalness, breathAmp, jitterAmp }` para material y micro-animaciones (respiración/jitter sutil).
-- **ReactFlow Knowledge Graph**: `CubeFooter` renderiza un grafo interactivo con nodos de emociones, personalidad, conocimientos (philosophy, theology, science, arts...), y conceptos aprendidos (últimos 6). Usa `@xyflow/react` con nodos posicionados, edges animados, controles de zoom/pan, y minimap.
-- **Exploration & Navigation System**:
-	- **Attention system**: Cubes escanean objetivos (libros, otros cubos, espejos, zonas ambient), calculan interés según personalidad.
-	- **Anti-clumping**: Fuerzas de separación entre vecinos (<4.5m) y wall-avoidance cerca de límites del sandbox.
-	- **Navigation**: Saltos dirigidos con ruido según personalidad, orientación hacia objetivo, detección de llegada.
-	- **Social targeting**: Solo eligen otros cubos como objetivo si están suficientemente lejos (>10u) para evitar aglomeraciones.
-	- **Spawns dispersos**: Posiciones iniciales en esquinas del sandbox (-30/-30, 30/-30, -30/30, 30/30, 0/0) para fomentar exploración.
-	- **Boredom system**: Memoria de objetivos visitados, se aburren según personalidad y vuelven a escanear.
-- **Learning & Knowledge System**:
-	- **Community registry**: Map-based pub-sub con RAF throttling, detecta cambios en position, personality, readingExperiences (incluye conceptsLearned).
-	- **Knowledge domains**: philosophy, theology, science, arts, history, literature, mathematics, psychology (theology separado de philosophy).
-	- **Book reading**: BookReadingSystem procesa lectura, mapea "Teología" → "theology", trackea conceptos progresivamente.
-	- **Concept tracking**: Set-based deduplication, almacena conceptos en readingExperiences.conceptsLearned.
-	- **Visual feedback**: Point light pulsa con pulseStrength, book completion dispara flash.
-**AI Conversation System**:
-	- **Local-first**: backend local por defecto (`VITE_AI_BACKEND=local`, URL `VITE_LOCAL_AI_URL`, modelo `VITE_LOCAL_AI_MODEL`).
-	- **OpenAI opcional**: sólo si `VITE_AI_BACKEND=openai` y hay API key; si no, fallback a templates.
-	- **Personality prompts**: 5 system prompts personalizados (calm, extrovert, curious, chaotic, neutral).
-	- **Context enrichment**: Intención + conceptos + emociones enviados a API.
-	- **Conversation history**: 10 mensajes por cubo + system prompt persistente.
-	- **Respuesta robusta (local)**: extrae de `response|reply|message|text` o string simple.
-- **Best practices**:
-	- No mutar variables locales después del render; usar `useRef` + `useFrame`.
-	- Evitar suscripciones en render; mover a `useEffect` y limpiar (`unsub()`).
-	- No acceder a `ref.current` durante render (React 19 purity violation); usar state o mover lógica a effects.
-	- Suscribirse a `api.position`, `api.velocity` y `api.quaternion` en `useEffect`.
-	- `Select` de postprocessing requiere `enabled={boolean}` (no `null`).
-	- `Outline.visibleEdgeColor` acepta número (p.ej., `0xffffff`).
-	- Cejas usan `boxGeometry` (no `capsuleGeometry`) para orientación horizontal por defecto.
-	- Camera lock state managed at App.tsx level, propagated to R3FCanvas and CubeInteraction.
-	- FollowCamera checks locked prop: early return cuando locked=false para deshabilitar seguimiento.
-	- Tab key for camera toggle (not Space) to avoid conflict with chat input.
-
-## ESLint Configuration
-
-Uses flat config with these plugins:
-- `@eslint/js` - Core JavaScript rules
-- `typescript-eslint` - TypeScript-specific rules (recommended preset)
-- `eslint-plugin-react-hooks` - React Hooks rules (flat config)
-- `eslint-plugin-react-refresh` - Fast Refresh rules for Vite
-
-**Important**: When adding new ESLint rules, use the flat config API with `files: ['**/*.{ts,tsx}']` pattern and `extends` array. The `dist/` folder is globally ignored.
 
 ## Important Notes
 
@@ -294,8 +322,6 @@ Uses flat config with these plugins:
 	- Local: `VITE_LOCAL_AI_URL` (default `http://localhost:3001/api/chat`), `VITE_LOCAL_AI_MODEL` (default `llama3.1`)
 	- OpenAI opcional: `VITE_OPENAI_API_KEY`, `VITE_OPENAI_MODEL`, tokens/temperature
 	- `isOpenAIConfigured()` devuelve true si backend es `local` (no requiere API key)
-
-## Anti-Clumping Pattern
 
 When implementing cube behavior, follow this pattern to prevent clustering:
 

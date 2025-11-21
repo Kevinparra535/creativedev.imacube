@@ -1,5 +1,4 @@
 import type { Personality } from "../ui/components/CubeList";
-import { getArchetypeForPersonality, getModelNameForArchetype } from "../config/npcArchetypes";
 import { buildWorldKnowledgeContext } from "../data/worldKnowledge";
 import { getCube, updateCube } from "../systems/Community";
 import type { BehaviorDecision } from "../systems/CognitionTypes";
@@ -82,8 +81,6 @@ export async function planBehavior(
   lastUserMessage: string
 ): Promise<BehaviorDecision | null> {
   const { localUrl, fallbackModel } = getPlannerConfig();
-  const archetype = getArchetypeForPersonality(personality);
-  const chosenModel = getModelNameForArchetype(archetype) || fallbackModel;
 
   const system = buildPlannerSystemPrompt(personality);
   const user = buildPlannerUserMessage(cubeId, personality, lastUserMessage);
@@ -97,23 +94,35 @@ export async function planBehavior(
     const res = await fetch(localUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: chosenModel, messages }),
+      body: JSON.stringify({ model: fallbackModel, messages }),
     });
     if (!res.ok) {
       // Planner is best-effort; fail silently
       return null;
     }
     const data = await res.json();
-    const text =
-      (typeof data === "string" ? data : undefined) ||
-      data?.response ||
-      data?.reply ||
-      data?.message ||
-      data?.text ||
-      "";
-    const trimmed = typeof text === "string" ? text.trim() : "";
+    const extractContent = (raw: unknown): string | null => {
+      if (!raw) return null;
+      if (typeof raw === "string") return raw.trim();
+      
+      // Type guard para objeto con propiedades dinámicas
+      if (typeof raw !== "object") return null;
+      
+      // Ollama format
+      const maybeOllamaFormat = raw as { message?: { content?: unknown } };
+      const mc = maybeOllamaFormat.message?.content;
+      if (typeof mc === "string" && mc.trim()) return mc.trim();
+      
+      // Alternate keys
+      const maybeRecord = raw as Record<string, unknown>;
+      for (const k of ["response", "reply", "text"]) {
+        const v = maybeRecord[k];
+        if (typeof v === "string" && v.trim()) return v.trim();
+      }
+      return null;
+    };
+    const trimmed = extractContent(data);
     if (!trimmed) return null;
-
     const decision = safeParseDecision(trimmed);
     if (!decision) return null;
 

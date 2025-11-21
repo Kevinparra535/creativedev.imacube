@@ -24,9 +24,9 @@ import {
 import { updateCube, getCube } from "../systems/Community";
 import type { ActiveModifier } from "../systems/Community";
 import {
-  initializeOpenAI,
-  getOpenAIService,
-  isOpenAIInitialized,
+  initializeAI,
+  getAIService,
+  isAIInitialized,
 } from "../services/AI.service";
 import { updateIdentityWithHints } from "../services/Identity.service";
 import {
@@ -34,7 +34,6 @@ import {
   updateCubeMemory,
   extractMemoryFromMessage,
 } from "../services/CubeMemory.service";
-import { getOpenAIConfig, isOpenAIConfigured } from "../config/ai.config";
 import type { Personality } from "./components/CubeList";
 
 // Cache de respuestas para evitar llamadas repetidas
@@ -64,12 +63,7 @@ function App() {
 
   const [aiConfigured, setAiConfigured] = useState(false);
 
-  // Tracking de uso y costos
-  const [totalTokens, setTotalTokens] = useState(() => {
-    const saved = localStorage.getItem("totalTokens");
-    return saved ? parseInt(saved, 10) : 0;
-  });
-
+  // Tracking de uso
   const [messageCount, setMessageCount] = useState(() => {
     const saved = localStorage.getItem("messageCount");
     return saved ? parseInt(saved, 10) : 0;
@@ -122,33 +116,18 @@ function App() {
 
   // Persistir tracking de uso
   useEffect(() => {
-    localStorage.setItem("totalTokens", totalTokens.toString());
     localStorage.setItem("messageCount", messageCount.toString());
-  }, [totalTokens, messageCount]);
+  }, [messageCount]);
 
-  // Inicializar OpenAI si está configurado
+  // Inicializar IA local al montar
   useEffect(() => {
-    const config = getOpenAIConfig();
-    if (isOpenAIConfigured()) {
-      try {
-        initializeOpenAI(config.apiKey, {
-          model: config.model,
-          maxTokens: config.maxTokens,
-          temperature: config.temperature,
-          backend: config.backend,
-          localUrl: config.localUrl,
-          localModel: config.localModel,
-        });
-        setUseAI(true);
-        setAiConfigured(true);
-        console.log("✅ AI inicializado correctamente");
-      } catch (error) {
-        console.error("❌ Error inicializando AI:", error);
-        setUseAI(false);
-        setAiConfigured(false);
-      }
-    } else {
-      console.log("ℹ️ AI no configurado. Usando respuestas template-based.");
+    try {
+      initializeAI();
+      setUseAI(true);
+      setAiConfigured(true);
+      console.log("✅ IA local inicializada correctamente");
+    } catch (error) {
+      console.error("❌ Error inicializando IA local:", error);
       setUseAI(false);
       setAiConfigured(false);
     }
@@ -269,9 +248,9 @@ function App() {
       let response: string;
 
       try {
-        // 5a. Intentar usar OpenAI si está disponible
-        if (useAI && isOpenAIInitialized()) {
-          const aiService = getOpenAIService();
+        // 5. Intentar usar IA local si está disponible
+        if (useAI && isAIInitialized()) {
+          const aiService = getAIService();
 
           // Retry con backoff
           const aiResponse = await retryWithBackoff(async () => {
@@ -287,21 +266,13 @@ function App() {
 
           if (aiResponse.success && aiResponse.response) {
             response = aiResponse.response;
-
-            // Track tokens y costos
-            const tokensUsed = aiResponse.usage?.totalTokens || 0;
-            setTotalTokens((prev) => prev + tokensUsed);
             setMessageCount((prev) => prev + 1);
-
-            console.log("🤖 Respuesta de OpenAI:", {
-              tokens: tokensUsed,
-              total: totalTokens + tokensUsed,
-            });
+            console.log("🤖 Respuesta de IA local");
           } else {
-            throw new Error(aiResponse.error || "Error en OpenAI");
+            throw new Error(aiResponse.error || "Error en IA local");
           }
         } else {
-          // 5b. Fallback a respuestas template-based
+          // Fallback a respuestas template-based
           response = generateResponse(
             message,
             intent,
@@ -315,7 +286,7 @@ function App() {
         }
       } catch (error) {
         console.error("❌ Error generando respuesta:", error);
-        // Fallback a template si OpenAI falla
+        // Fallback a template si IA local falla
         response = generateResponse(
           message,
           intent,
@@ -350,7 +321,7 @@ function App() {
         visualEffectsRef.current.delete(selectedId);
       }, 3000);
     },
-    [selectedId, cubesLive, useAI, retryWithBackoff, totalTokens]
+    [selectedId, cubesLive, useAI, retryWithBackoff]
   );
 
   // Handler to select any cube (user or NPC)
@@ -424,7 +395,6 @@ function App() {
         isConfigured={aiConfigured}
         isEnabled={useAI}
         onToggle={setUseAI}
-        totalTokens={totalTokens}
         messageCount={messageCount}
         onReset={handleReset}
       />
