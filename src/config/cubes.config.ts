@@ -4,7 +4,7 @@ export const CUBES_CONFIG: CubeData[] = [
   {
     id: "c1",
     name: "Cube Zen",
-    position: [-30, 8, -30],
+    position: [-10, 8, -10],
     auto: true,
     personality: "calm",
     eyeStyle: "bubble",
@@ -12,7 +12,7 @@ export const CUBES_CONFIG: CubeData[] = [
   {
     id: "c2",
     name: "Cube Social",
-    position: [30, 7, -30],
+    position: [10, 7, -10],
     auto: true,
     personality: "extrovert",
     eyeStyle: "dot",
@@ -20,7 +20,7 @@ export const CUBES_CONFIG: CubeData[] = [
   {
     id: "c3",
     name: "Cube Curioso",
-    position: [-30, 6, 30],
+    position: [-15, 6, 10],
     auto: true,
     personality: "curious",
     eyeStyle: "bubble",
@@ -28,7 +28,7 @@ export const CUBES_CONFIG: CubeData[] = [
   {
     id: "c4",
     name: "Cube Caos",
-    position: [30, 9, 30],
+    position: [5, 9, 15],
     auto: true,
     personality: "chaotic",
     eyeStyle: "dot",

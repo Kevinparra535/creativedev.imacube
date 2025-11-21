@@ -10,7 +10,9 @@ app.use(express.json());
 
 // Simple request logger
 app.use((req, _res, next) => {
-  console.log(`[REQ] ${new Date().toISOString()} ${req.method} ${req.originalUrl}`);
+  console.log(
+    `[REQ] ${new Date().toISOString()} ${req.method} ${req.originalUrl}`
+  );
   next();
 });
 

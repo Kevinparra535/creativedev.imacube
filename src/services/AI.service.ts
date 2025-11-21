@@ -13,10 +13,13 @@ import type {
 import {
   getCubeMemory,
   buildMemoryContext,
+  updateCubeMemory,
 } from "./CubeMemory.service";
 import { deriveNPCActions, applyNPCActions } from "./NPCInteractionBridge.service";
 import { buildWorldKnowledgeContext } from "../data/worldKnowledge";
 import { planBehavior } from "./BehaviorPlanner.service";
+// POC: se desactiva síntesis avanzada (MemorySynthesis) temporalmente.
+// import { maybeSynthesize } from "./MemorySynthesis.service";
 
 // Configuración simple de Ollama local
 const LOCAL_AI_URL = import.meta.env.VITE_LOCAL_AI_URL || "http://localhost:3001/api/chat";
@@ -271,6 +274,19 @@ IMPORTANTE:
       // Agregar respuesta del asistente al historial
       this.conversationHistory.get(cubeId)!.push({ role: "assistant", content: aiResponse });
 
+      // Actualizar working memory con mensaje del usuario
+      if (memory) {
+        try {
+          updateCubeMemory(cubeId, {
+            messageText: message,
+            currentActivity: "conversando",
+            intent: intent,
+          });
+        } catch (memErr) {
+          console.warn("Working memory update error:", memErr);
+        }
+      }
+
       // Derivar acciones expresivas / físicas (bridge)
       try {
         const actions = deriveNPCActions(aiResponse, memory || undefined);
@@ -285,6 +301,8 @@ IMPORTANTE:
       } catch (planErr) {
         console.warn("BehaviorPlanner error:", planErr);
       }
+
+      // POC: síntesis desactivada para estado "recién nacido".
 
       return {
         success: true,

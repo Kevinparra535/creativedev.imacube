@@ -10,6 +10,9 @@ export interface LearningUpdate {
   addTraits?: string[];
   addFacts?: string[];
   addPreferences?: string[];
+  addCoreBeliefs?: string[]; // Nuevas creencias fundamentales
+  addMetaGoals?: string[]; // Nuevas metas de largo plazo
+  skillUpdates?: Record<string, number>; // Ej: { "social": 0.05, "empathy": -0.02 }
 }
 
 export type PersonalityShift =

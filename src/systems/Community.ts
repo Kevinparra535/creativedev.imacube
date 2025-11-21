@@ -1,5 +1,6 @@
 import type { Personality } from "../ui/components/CubeList";
 import type { BehaviorDecision } from "./CognitionTypes";
+import type { CubeSkills } from "../services/CubeMemory.service";
 
 export type Capability = "selfRighting" | "navigation";
 
@@ -19,6 +20,8 @@ export interface PublicCubeState {
   personality: Personality;
   socialTrait: "kind" | "selfish";
   capabilities: CapabilitiesState;
+  /** Current numeric skill set (0-1 range) */
+  skills?: CubeSkills;
   /** Active transient behavioral/expressive modifiers with TTL */
   activeModifiers?: ActiveModifier[];
   /** Acciones transitorias de una sola aplicación (colorShift / jump / light) */
@@ -118,6 +121,15 @@ export function updateCube(id: string, partial: Partial<PublicCubeState>) {
     (caps.navigation !== capn.navigation ||
       caps.selfRighting !== capn.selfRighting);
 
+  // Skills changed (any numeric delta)
+  const skillsChanged =
+    cur.skills !== next.skills &&
+    !!next.skills &&
+    (!cur.skills ||
+      Object.keys(next.skills).some(
+        (k) => (cur.skills as CubeSkills)[k as keyof CubeSkills] !== (next.skills as CubeSkills)[k as keyof CubeSkills]
+      ));
+
   // Check learningProgress changes
   const lpChanged =
     cur.learningProgress !== next.learningProgress &&
@@ -179,6 +191,7 @@ export function updateCube(id: string, partial: Partial<PublicCubeState>) {
     persChanged ||
     traitChanged ||
     capsChanged ||
+    skillsChanged ||
     lpChanged ||
     knowledgeChanged ||
     readingExpChanged ||

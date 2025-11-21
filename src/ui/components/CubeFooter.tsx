@@ -11,6 +11,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import CubeList from "./CubeList";
 import type { CubeData } from "./CubeList";
+import type { CubeSkills } from "../../services/CubeMemory.service";
 import {
   Footer,
   EmptyState,
@@ -36,6 +37,7 @@ type FooterCube = CubeData & {
   capabilities?: { navigation: boolean; selfRighting: boolean };
   learningProgress?: { navigation: number; selfRighting: number };
   knowledge?: Record<string, number>;
+  skills?: CubeSkills;
   readingExperiences?: {
     originalPersonality: string;
     emotionsExperienced: string[];
@@ -348,6 +350,43 @@ export default function CubeFooter({
           target: id,
           animated: false,
           style: { stroke: "#66b3ff", opacity: 0.5 },
+        });
+      });
+    }
+
+    // Skills visualization (radial/progress nodes)
+    if (selectedCube.skills) {
+      const skillEntries = Object.entries(selectedCube.skills) as Array<[keyof CubeSkills, number]>;
+      skillEntries.forEach(([skill, value], idx) => {
+        const id = `skill-${nodeId++}`;
+        const pct = Math.round(value * 100);
+        nodes.push({
+          id,
+            type: "default",
+            position: { x: 200 + idx * 120, y: 700 },
+            data: { label: `⚙️ ${skill}\n${pct}%` },
+            style: {
+              background: `linear-gradient(to top, rgba(100,200,255,0.35) ${pct}%, rgba(40,40,50,0.6) ${pct}%)`,
+              border: "1px solid #64c8ff",
+              borderRadius: "50%",
+              padding: "14px 10px",
+              color: "#fff",
+              fontSize: "0.65rem",
+              textAlign: "center",
+              width: "70px",
+              height: "70px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              lineHeight: 1.1,
+              boxShadow: value > 0.3 ? "0 0 6px rgba(100,200,255,0.4)" : undefined,
+            },
+        });
+        edges.push({
+          id: `e-${id}`,
+          source: "cube",
+          target: id,
+          style: { stroke: "#64c8ff", opacity: 0.45 },
         });
       });
     }

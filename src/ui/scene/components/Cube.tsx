@@ -57,10 +57,16 @@ import {
   getCube,
   pruneExpiredModifiers,
 } from "../../../systems/Community";
+import { initializeCubeMemory, updateCubeMemory } from "../../../services/CubeMemory.service";
+import type { CubeMemory } from "../../../services/CubeMemory.service";
 import {
   tryLearnFromNeighbors,
   spontaneousDiscovery,
 } from "../../../systems/SocialLearningSystem";
+import {
+  performAutonomousTick,
+  getThinkingInterval,
+} from "../../../systems/AutonomousThinking";
 import {
   applyBookEffects,
   createKnowledgeState,
@@ -199,6 +205,8 @@ export default function Cube({
   const traitsAcquired = useRef<Set<string>>(new Set());
   const booksRead = useRef<string[]>([]);
   const conceptsLearned = useRef<Set<string>>(new Set());
+  // POC knowledge & personality drift counters
+  const personalityDriftCounters = useRef<Record<string, number>>({});
   const selLightRef = useRef<PointLight | null>(null);
   const lastTransientActionId = useRef<number>(0);
   const lastColorShift = useRef<string | null>(null);
@@ -230,6 +238,8 @@ export default function Cube({
   const knowledge = useRef(createKnowledgeState());
   const personalityForRegistry: ListPersonality =
     personality as ListPersonality;
+  // Memory reference (POC simplified skills propagation)
+  const memoryRef = useRef<CubeMemory | null>(null);
 
   // Personality shift tracking for gradual evolution
   const personalityShifts = useRef<Array<{ shift: string; timestamp: number }>>(
@@ -237,6 +247,12 @@ export default function Cube({
   );
   const SHIFT_THRESHOLD = 5; // Number of consistent shifts needed to change personality
   const SHIFT_WINDOW_MS = 60000; // Time window to consider shifts (1 minute)
+
+  // Autonomous thinking timer (for AI-driven reflection without user input)
+  const autonomousThinkingTimer = useRef(0);
+  const [autonomousThinkingInterval] = useState(() =>
+    getThinkingInterval(personality as ListPersonality) * 1000
+  ); // Convert to ms, randomize per instance
 
   // Eyes targets derived from thought and current personality (may have changed from reading)
   const { eyeTargetScale, eyeTargetLook, mood } = useMemo(() => {
@@ -411,19 +427,19 @@ export default function Cube({
     };
   }, [api.quaternion]);
 
-  // Register cube in community on mount and unregister on unmount
+  // Initialize memory & register cube (including initial skills) on mount; unregister on unmount
   useEffect(() => {
+    memoryRef.current = initializeCubeMemory(id, personalityForRegistry, id);
     registerCube({
       id,
       position: cubePos.current,
       personality: personalityForRegistry,
       socialTrait,
       capabilities: capabilities.current,
+      skills: memoryRef.current.skills,
     });
-    return () => {
-      unregisterCube(id);
-    };
-  }, [id, personality, personalityForRegistry, socialTrait]);
+    return () => unregisterCube(id);
+  }, [id, personalityForRegistry, socialTrait]);
 
   // Process incoming conversation messages
   useEffect(() => {
@@ -471,6 +487,70 @@ export default function Cube({
   }, [conversationMessage, conversationTimestamp, currentPersonality, id]);
 
   useFrame((state, delta) => {
+        // ────────────────────────────────────────────────────────────────
+        // POC: Lectura simple de libros cercanos (incremento conocimiento + micro skills)
+        // ────────────────────────────────────────────────────────────────
+        if (bookTargets && bookTargets.length > 0) {
+          // Elegir libro más cercano dentro de radio
+          let nearest: typeof bookTargets[0] | null = null;
+          let bestDist = Infinity;
+          for (const b of bookTargets) {
+            const bx = b.object.position.x;
+            const bz = b.object.position.z;
+            const dx = bx - cubePos.current[0];
+            const dz = bz - cubePos.current[2];
+            const dist = Math.sqrt(dx*dx + dz*dz);
+            if (dist < bestDist) { bestDist = dist; nearest = b; }
+          }
+          if (nearest && bestDist < 10) { // dentro de rango de lectura
+            // Progresar lectura
+            readingTick.current += delta;
+            if (readingTick.current > 1) { // cada ~1s aplicar efectos
+              readingTick.current = 0;
+              // Incremento básico de knowledge por dominio
+              const domain = nearest.domain || "literature";
+              const k = knowledge.current;
+              if (domain in k) {
+                // crecimiento lento
+                (k as any)[domain] = Math.min(100, (k as any)[domain] + 0.5);
+              }
+              // Micro incremento de skill según dominio
+              const skillUpdates: Record<string, number> = {};
+              switch (domain) {
+                case "philosophy": skillUpdates.curiosity = 0.004; skillUpdates.empathy = 0.003; break;
+                case "science": skillUpdates.logic = 0.005; skillUpdates.curiosity = 0.003; break;
+                case "literature": skillUpdates.creativity = 0.004; skillUpdates.empathy = 0.003; break;
+                case "art": skillUpdates.creativity = 0.005; break;
+                case "music": skillUpdates.creativity = 0.004; skillUpdates.social = 0.003; break;
+                case "theology": skillUpdates.empathy = 0.005; break;
+                case "math": skillUpdates.logic = 0.005; break;
+                case "technology": skillUpdates.logic = 0.004; skillUpdates.creativity = 0.002; break;
+              }
+              try {
+                const mem = updateCubeMemory(id, { skillUpdates, intent: "learning", currentActivity: "leyendo" });
+                memoryRef.current = mem;
+                updateCube(id, { knowledge: { ...knowledge.current }, skills: mem.skills });
+              } catch {}
+              // Pensamiento simple visual
+              setThought(`Leyendo ${domain}...`);
+              // Drift personalidad rudimentario
+              personalityDriftCounters.current[domain] = (personalityDriftCounters.current[domain] || 0) + 1;
+              const driftScore = personalityDriftCounters.current[domain];
+              if (driftScore > 12) { // tras suficiente exposición
+                let newPers: Personality | null = null;
+                if (domain === "philosophy" || domain === "theology") newPers = "calm";
+                else if (domain === "science" || domain === "math" || domain === "technology") newPers = "neutral";
+                else if (domain === "art" || domain === "music" || domain === "literature") newPers = "extrovert";
+                if (newPers && newPers !== currentPersonality) {
+                  setCurrentPersonality(newPers);
+                  updateCube(id, { personality: newPers });
+                  setThought(`Me siento más ${newPers}`);
+                  personalityDriftCounters.current[domain] = 0; // reset
+                }
+              }
+            }
+          }
+        }
     // Transient Action Consumption (jump / colorShift / emphasisLight)
     const transientState = getCube(id);
     const ta = transientState?.transientAction;
@@ -555,6 +635,24 @@ export default function Cube({
     const skipAutonomous = thoughtMode === "conversation";
 
     // ────────────────────────────────────────────────────────────────
+    // AUTONOMOUS THINKING TICK (AI-driven reflection)
+    // ────────────────────────────────────────────────────────────────
+    if (!skipAutonomous) {
+      autonomousThinkingTimer.current += delta * 1000; // Increment in ms
+
+      if (autonomousThinkingTimer.current >= autonomousThinkingInterval) {
+        autonomousThinkingTimer.current = 0; // Reset timer
+
+        // Fire autonomous thinking tick (best-effort, async, non-blocking)
+        performAutonomousTick(id, currentPersonality as ListPersonality).catch(
+          (err) => {
+            console.warn(`[${id}] Autonomous thinking error:`, err);
+          }
+        );
+      }
+    }
+
+    // ────────────────────────────────────────────────────────────────
     // COMMUNITY UPDATE & SOCIAL LEARNING TICK
     // ────────────────────────────────────────────────────────────────
     // Keep public state updated (include learning progress, current personality, and reading experiences)
@@ -569,6 +667,7 @@ export default function Cube({
       capabilities: capabilities.current,
       learningProgress: { ...learningProgress.current },
       knowledge: { ...knowledge.current },
+      skills: memoryRef.current?.skills,
       readingExperiences: {
         originalPersonality: originalPersonality.current,
         emotionsExperienced: Array.from(emotionsExperienced.current),

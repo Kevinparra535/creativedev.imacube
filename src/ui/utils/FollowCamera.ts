@@ -16,7 +16,7 @@ export function FollowCamera({
   const target = useRef<[number, number, number] | null>(null);
   const followOffset = useRef<[number, number, number]>([-8, 15, 8]);
   const userInteracting = useRef(false);
-  
+
   // Footer height is 450px - calculate vertical offset to center cube in visible area
   // Typical viewport is ~900px, footer takes bottom 450px, so center should be ~225px from top
   // This translates to lifting the target point higher in 3D space
@@ -69,7 +69,11 @@ export function FollowCamera({
       // Update offset from current camera position
       const pos = controls.camera?.position;
       if (pos) {
-        followOffset.current = [pos.x - tx, pos.y - (ty + footerCompensation), pos.z - tz];
+        followOffset.current = [
+          pos.x - tx,
+          pos.y - (ty + footerCompensation),
+          pos.z - tz,
+        ];
       }
       controls.setTarget(tx, ty + footerCompensation, tz, false);
       return;

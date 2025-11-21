@@ -16,24 +16,108 @@ import type { Personality } from "../ui/components/CubeList";
 // TIPOS DE MEMORIA
 // ────────────────────────────────────────────────────────────────
 
+/**
+ * Episodio de memoria: evento importante con contexto
+ */
+export interface MemoryEpisode {
+  id: string;
+  timestamp: number;
+  type: "conversation" | "learning" | "emotional" | "achievement";
+  summary: string; // Resumen breve del episodio
+  emotionalImpact?: "positive" | "negative" | "neutral";
+  keywords: string[]; // Palabras clave para búsqueda
+}
+
+/**
+ * Habilidades numéricas del cubo (0-1)
+ */
+export interface CubeSkills {
+  social: number; // Habilidad social/confianza
+  empathy: number; // Empatía hacia el jugador
+  assertiveness: number; // Asertividad al hablar
+  curiosity: number; // Apertura a aprender
+  creativity: number; // Pensamiento creativo
+  logic: number; // Pensamiento lógico/analítico
+}
+
+/**
+ * Meta del cubo con tracking de progreso
+ */
+export interface CubeGoal {
+  id: string;
+  type: "short" | "medium" | "long"; // Short: 1-5 min, Medium: 1 sesión, Long: varias sesiones
+  description: string; // "Leer 3 libros de filosofía"
+  progress: number; // 0-1
+  createdAt: number;
+  updatedAt: number;
+  completedAt?: number;
+  status: "active" | "completed" | "abandoned";
+}
+
 export interface CubeMemory {
   cubeId: string;
+
+  // ────────────────────────────────────────────────────────────────
+  // CAPA 1: MEMORIA DE TRABAJO (Short-term)
+  // ────────────────────────────────────────────────────────────────
+  workingMemory: {
+    recentMessages: string[]; // Últimos 5 mensajes
+    currentEmotion: string; // Emoción actual
+    lastActivity: string; // "leyendo", "navegando", "conversando"
+  };
+
+  // ────────────────────────────────────────────────────────────────
+  // CAPA 2: MEMORIA EPISÓDICA (Logs de eventos)
+  // ────────────────────────────────────────────────────────────────
+  episodes: MemoryEpisode[]; // Últimos 50 episodios importantes
+
+  // ────────────────────────────────────────────────────────────────
+  // CAPA 3: CORE / IDENTIDAD (Long-term)
+  // ────────────────────────────────────────────────────────────────
+  coreBeliefs: string[]; // Creencias fundamentales: "El jugador valora la honestidad", "Quiero ser mejor amigo"
+  metaGoals: string[]; // Metas de largo plazo: "Ayudar al jugador a sentirse menos solo"
+  philosophyStatement?: string; // Declaración filosófica del cubo (generada por síntesis)
+
+  // Rasgos y hechos (existentes, ahora parte del core)
   traits: string[]; // Rasgos adquiridos: "es curioso", "le gusta la música", "admira al jugador"
   facts: string[]; // Hechos aprendidos: "el jugador le enseñó 'glitch'", "el jugador le dijo que es su mejor amigo"
   preferences: string[]; // Preferencias del jugador detectadas: "le gusta el rock", "prefiere respuestas cortas"
+
+  // ────────────────────────────────────────────────────────────────
+  // HABILIDADES (Skills numéricas)
+  // ────────────────────────────────────────────────────────────────
+  skills: CubeSkills;
+
+  // ────────────────────────────────────────────────────────────────
+  // METAS ACTIVAS
+  // ────────────────────────────────────────────────────────────────
+  activeGoals: CubeGoal[];
+
+  // ────────────────────────────────────────────────────────────────
+  // SÍNTESIS (Historial de consolidación de memoria)
+  // ────────────────────────────────────────────────────────────────
+  synthesisHistory: {
+    timestamp: number;
+    summary: string; // Resumen de lo aprendido en esa síntesis
+    skillChanges: Partial<CubeSkills>; // Cambios en habilidades
+  }[];
+
+  // Estado emocional acumulado
   emotionalState: {
-    // Estado emocional acumulado
     dominantEmotion?: string; // "feliz", "curioso", "frustrado"
     lastInteractionTone?: "positive" | "negative" | "neutral";
   };
+
+  // Estadísticas de conversación
   conversationStats: {
-    // Estadísticas de conversación
     totalMessages: number;
     praises: number;
     criticisms: number;
     questions: number;
     lastInteraction: number; // timestamp
+    interactionsSinceSynthesis: number; // Contador para disparar síntesis
   };
+
   lastUpdated: number; // timestamp
 }
 
@@ -64,32 +148,49 @@ function saveAllMemories(memories: Record<string, CubeMemory>) {
 // INICIALIZACIÓN
 // ────────────────────────────────────────────────────────────────
 
-const DEFAULT_TRAITS_BY_PERSONALITY: Record<Personality, string[]> = {
-  calm: [
-    "es tranquilo y reflexivo",
-    "prefiere la calma al caos",
-    "medita antes de hablar",
-  ],
-  curious: [
-    "es muy curioso",
-    "siempre hace preguntas",
-    "le fascina aprender cosas nuevas",
-  ],
-  extrovert: [
-    "es sociable y energético",
-    "ama conectar con otros",
-    "celebra cada pequeño logro",
-  ],
-  chaotic: [
-    "es impredecible",
-    "tiene sentido del humor sarcástico",
-    "dice lo que piensa sin filtros",
-  ],
-  neutral: [
-    "es objetivo y equilibrado",
-    "se enfoca en hechos",
-    "responde de forma clara y directa",
-  ],
+
+// POC: valores iniciales muy bajos para permitir crecimiento visible (recién nacidos)
+const DEFAULT_SKILLS_BY_PERSONALITY: Record<Personality, CubeSkills> = {
+  calm: {
+    social: 0.08,
+    empathy: 0.12,
+    assertiveness: 0.07,
+    curiosity: 0.1,
+    creativity: 0.1,
+    logic: 0.12,
+  },
+  curious: {
+    social: 0.09,
+    empathy: 0.09,
+    assertiveness: 0.06,
+    curiosity: 0.15,
+    creativity: 0.12,
+    logic: 0.1,
+  },
+  extrovert: {
+    social: 0.15,
+    empathy: 0.1,
+    assertiveness: 0.12,
+    curiosity: 0.1,
+    creativity: 0.12,
+    logic: 0.07,
+  },
+  chaotic: {
+    social: 0.07,
+    empathy: 0.06,
+    assertiveness: 0.15,
+    curiosity: 0.12,
+    creativity: 0.15,
+    logic: 0.08,
+  },
+  neutral: {
+    social: 0.1,
+    empathy: 0.1,
+    assertiveness: 0.1,
+    curiosity: 0.1,
+    creativity: 0.1,
+    logic: 0.1,
+  },
 };
 
 export function initializeCubeMemory(
@@ -107,13 +208,39 @@ export function initializeCubeMemory(
   // Crear nueva memoria con rasgos base
   const newMemory: CubeMemory = {
     cubeId,
+
+    // Capa 1: Working Memory
+    workingMemory: {
+      recentMessages: [],
+      currentEmotion: "neutral",
+      lastActivity: "idle",
+    },
+
+    // Capa 2: Episodic Memory
+    episodes: [],
+
+    // Capa 3: Core/Identity
+    // POC identidad mínima
+    coreBeliefs: ["estoy comenzando a aprender"],
+    metaGoals: [],
+    philosophyStatement: undefined,
     traits: [
-      ...DEFAULT_TRAITS_BY_PERSONALITY[personality],
       `se llama ${cubeName}`,
-      "está aprendiendo del jugador",
+      `personalidad semilla: ${personality}`,
+      "recién nacido explorador",
     ],
-    facts: [`habita en un mundo 3D cerrado tipo sandbox`],
+    facts: ["existo en un sandbox 3D"],
     preferences: [],
+
+    // Skills
+    skills: { ...DEFAULT_SKILLS_BY_PERSONALITY[personality] },
+
+    // Active Goals
+    activeGoals: [],
+
+    // Synthesis History
+    synthesisHistory: [],
+
     emotionalState: {},
     conversationStats: {
       totalMessages: 0,
@@ -121,6 +248,7 @@ export function initializeCubeMemory(
       criticisms: 0,
       questions: 0,
       lastInteraction: Date.now(),
+      interactionsSinceSynthesis: 0,
     },
     lastUpdated: Date.now(),
   };
@@ -148,8 +276,12 @@ interface MemoryUpdate {
   addTraits?: string[]; // Nuevos rasgos a agregar
   addFacts?: string[]; // Nuevos hechos a agregar
   addPreferences?: string[]; // Nuevas preferencias del jugador
+  addCoreBeliefs?: string[]; // Nuevas creencias fundamentales
+  addMetaGoals?: string[]; // Nuevas metas de largo plazo
   emotionalTone?: "positive" | "negative" | "neutral";
   dominantEmotion?: string;
+  currentActivity?: string; // "leyendo", "navegando", "conversando"
+  skillUpdates?: Partial<CubeSkills>; // Ajustes a habilidades (+/-0.05 típico)
   intent?:
     | "greeting"
     | "preference"
@@ -160,7 +292,9 @@ interface MemoryUpdate {
     | "praise"
     | "criticism"
     | "philosophy"
+    | "learning"
     | "casual";
+  messageText?: string; // Texto del mensaje para working memory
 }
 
 export function updateCubeMemory(
@@ -174,6 +308,68 @@ export function updateCubeMemory(
     console.error(`Memoria no encontrada para cubo ${cubeId}`);
     throw new Error(`Cube memory not initialized for ${cubeId}`);
   }
+
+  // ────────────────────────────────────────────────────────────────
+  // CAPA 1: Working Memory
+  // ────────────────────────────────────────────────────────────────
+  if (update.messageText) {
+    memory.workingMemory.recentMessages.push(update.messageText);
+    if (memory.workingMemory.recentMessages.length > 5) {
+      memory.workingMemory.recentMessages =
+        memory.workingMemory.recentMessages.slice(-5);
+    }
+  }
+
+  if (update.dominantEmotion) {
+    memory.workingMemory.currentEmotion = update.dominantEmotion;
+  }
+
+  if (update.currentActivity) {
+    memory.workingMemory.lastActivity = update.currentActivity;
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // CAPA 2: Episodic Memory
+  // ────────────────────────────────────────────────────────────────
+  // Crear episodio si es importante
+  if (
+    update.intent &&
+    [
+      "praise",
+      "criticism",
+      "instruction",
+      "emotion_sharing",
+      "philosophy",
+      "learning",
+    ].includes(update.intent)
+  ) {
+    const episode: MemoryEpisode = {
+      id: `ep_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: Date.now(),
+      type:
+        update.intent === "praise" || update.intent === "criticism"
+          ? "emotional"
+          : update.intent === "instruction"
+            ? "learning"
+            : "conversation",
+      summary: update.messageText || `Interacción tipo ${update.intent}`,
+      emotionalImpact: update.emotionalTone,
+      keywords: update.messageText
+        ? update.messageText.split(" ").slice(0, 5)
+        : [],
+    };
+
+    memory.episodes.push(episode);
+
+    // Mantener solo últimos 50 episodios
+    if (memory.episodes.length > 50) {
+      memory.episodes = memory.episodes.slice(-50);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // CAPA 3: Core/Identity
+  // ────────────────────────────────────────────────────────────────
 
   // Actualizar rasgos (evitar duplicados)
   if (update.addTraits && update.addTraits.length > 0) {
@@ -209,7 +405,50 @@ export function updateCubeMemory(
     }
   }
 
-  // Actualizar estado emocional
+  // Actualizar creencias core (evitar duplicados, limitar a últimas 10)
+  if (update.addCoreBeliefs && update.addCoreBeliefs.length > 0) {
+    update.addCoreBeliefs.forEach((belief) => {
+      if (!memory.coreBeliefs.includes(belief)) {
+        memory.coreBeliefs.push(belief);
+      }
+    });
+    if (memory.coreBeliefs.length > 10) {
+      memory.coreBeliefs = memory.coreBeliefs.slice(-10);
+    }
+  }
+
+  // Actualizar meta-goals (evitar duplicados, limitar a últimas 5)
+  if (update.addMetaGoals && update.addMetaGoals.length > 0) {
+    update.addMetaGoals.forEach((goal) => {
+      if (!memory.metaGoals.includes(goal)) {
+        memory.metaGoals.push(goal);
+      }
+    });
+    if (memory.metaGoals.length > 5) {
+      memory.metaGoals = memory.metaGoals.slice(-5);
+    }
+  }
+  // POC: desactivar actualización de coreBeliefs/metaGoals (identidad básica solamente)
+
+  // ────────────────────────────────────────────────────────────────
+  // SKILLS (Habilidades numéricas)
+  // ────────────────────────────────────────────────────────────────
+  if (update.skillUpdates) {
+    Object.keys(update.skillUpdates).forEach((key) => {
+      const skillKey = key as keyof CubeSkills;
+      const change = update.skillUpdates![skillKey];
+      if (change !== undefined) {
+        memory.skills[skillKey] = Math.max(
+          0,
+          Math.min(1, memory.skills[skillKey] + change)
+        );
+      }
+    });
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // ESTADO EMOCIONAL
+  // ────────────────────────────────────────────────────────────────
   if (update.emotionalTone) {
     memory.emotionalState.lastInteractionTone = update.emotionalTone;
   }
@@ -217,9 +456,12 @@ export function updateCubeMemory(
     memory.emotionalState.dominantEmotion = update.dominantEmotion;
   }
 
-  // Actualizar estadísticas de conversación
+  // ────────────────────────────────────────────────────────────────
+  // ESTADÍSTICAS DE CONVERSACIÓN
+  // ────────────────────────────────────────────────────────────────
   memory.conversationStats.totalMessages += 1;
   memory.conversationStats.lastInteraction = Date.now();
+  memory.conversationStats.interactionsSinceSynthesis += 1;
 
   if (update.intent === "praise") {
     memory.conversationStats.praises += 1;
@@ -248,10 +490,47 @@ export function buildMemoryContext(memory: CubeMemory): string {
   lines.push("[MEMORIA DEL CUBO]");
   lines.push("");
 
+  // ────────────────────────────────────────────────────────────────
+  // CAPA 1: MEMORIA DE TRABAJO (Short-term)
+  // ────────────────────────────────────────────────────────────────
+  lines.push("Memoria de trabajo (últimos minutos):");
+  if (memory.workingMemory.recentMessages.length > 0) {
+    lines.push(
+      `- Últimos mensajes: ${memory.workingMemory.recentMessages.slice(-3).join(", ")}`
+    );
+  }
+  lines.push(`- Emoción actual: ${memory.workingMemory.currentEmotion}`);
+  lines.push(`- Actividad actual: ${memory.workingMemory.lastActivity}`);
+  lines.push("");
+
+  // ────────────────────────────────────────────────────────────────
+  // CAPA 3: CORE/IDENTIDAD (Long-term) - Mostrar primero para contexto
+  // ────────────────────────────────────────────────────────────────
+  if (memory.coreBeliefs.length > 0) {
+    lines.push("Creencias fundamentales (core):");
+    memory.coreBeliefs.forEach((belief) => {
+      lines.push(`- ${belief}`);
+    });
+    lines.push("");
+  }
+
+  if (memory.metaGoals.length > 0) {
+    lines.push("Metas de largo plazo:");
+    memory.metaGoals.forEach((goal) => {
+      lines.push(`- ${goal}`);
+    });
+    lines.push("");
+  }
+
+  if (memory.philosophyStatement) {
+    lines.push(`Filosofía personal: "${memory.philosophyStatement}"`);
+    lines.push("");
+  }
+
   // Rasgos actuales
   if (memory.traits.length > 0) {
     lines.push("Rasgos de personalidad:");
-    memory.traits.forEach((trait) => {
+    memory.traits.slice(-5).forEach((trait) => {
       lines.push(`- ${trait}`);
     });
     lines.push("");
@@ -260,7 +539,7 @@ export function buildMemoryContext(memory: CubeMemory): string {
   // Hechos importantes
   if (memory.facts.length > 0) {
     lines.push("Hechos importantes:");
-    memory.facts.forEach((fact) => {
+    memory.facts.slice(-5).forEach((fact) => {
       lines.push(`- ${fact}`);
     });
     lines.push("");
@@ -269,8 +548,47 @@ export function buildMemoryContext(memory: CubeMemory): string {
   // Preferencias del jugador
   if (memory.preferences.length > 0) {
     lines.push("Preferencias del jugador:");
-    memory.preferences.forEach((pref) => {
+    memory.preferences.slice(-5).forEach((pref) => {
       lines.push(`- ${pref}`);
+    });
+    lines.push("");
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // HABILIDADES (Skills numéricas)
+  // ────────────────────────────────────────────────────────────────
+  lines.push("Habilidades:");
+  lines.push(`- Social: ${(memory.skills.social * 100).toFixed(0)}%`);
+  lines.push(`- Empatía: ${(memory.skills.empathy * 100).toFixed(0)}%`);
+  lines.push(
+    `- Asertividad: ${(memory.skills.assertiveness * 100).toFixed(0)}%`
+  );
+  lines.push(`- Curiosidad: ${(memory.skills.curiosity * 100).toFixed(0)}%`);
+  lines.push(`- Creatividad: ${(memory.skills.creativity * 100).toFixed(0)}%`);
+  lines.push(`- Lógica: ${(memory.skills.logic * 100).toFixed(0)}%`);
+  lines.push("");
+
+  // ────────────────────────────────────────────────────────────────
+  // METAS ACTIVAS
+  // ────────────────────────────────────────────────────────────────
+  const activeGoals = memory.activeGoals.filter((g) => g.status === "active");
+  if (activeGoals.length > 0) {
+    lines.push("Metas activas:");
+    activeGoals.forEach((goal) => {
+      const progressPercent = (goal.progress * 100).toFixed(0);
+      lines.push(`- ${goal.description} (${progressPercent}%)`);
+    });
+    lines.push("");
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // EPISODIOS RECIENTES (Últimos 3)
+  // ────────────────────────────────────────────────────────────────
+  if (memory.episodes.length > 0) {
+    lines.push("Episodios recientes:");
+    memory.episodes.slice(-3).forEach((ep) => {
+      const timeAgo = Math.floor((Date.now() - ep.timestamp) / 1000 / 60);
+      lines.push(`- [Hace ${timeAgo}m] ${ep.summary}`);
     });
     lines.push("");
   }
@@ -301,6 +619,7 @@ export function buildMemoryContext(memory: CubeMemory): string {
     }
   }
 
+  // POC: prompt mínimo (solo estado inmediato + skills + últimos episodios)
   return lines.join("\n");
 }
 
@@ -320,14 +639,16 @@ export function extractMemoryFromMessage(
     | "praise"
     | "criticism"
     | "philosophy"
+    | "learning"
     | "casual"
 ): MemoryUpdate {
   const update: MemoryUpdate = { intent };
 
   // Extraer preferencias del jugador
   if (intent === "preference") {
-    const prefMatches =
-      message.match(/me gusta (.+)|prefiero (.+)|me encanta (.+)/i);
+    const prefMatches = message.match(
+      /me gusta (.+)|prefiero (.+)|me encanta (.+)/i
+    );
     if (prefMatches) {
       const pref = prefMatches[1] || prefMatches[2] || prefMatches[3];
       update.addPreferences = [`le gusta ${pref.trim()}`];

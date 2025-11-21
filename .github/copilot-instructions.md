@@ -2,7 +2,10 @@
 
 ## Project Overview
 
-Interactive 3D sandbox with AI-powered NPCs (cubes) that learn, explore, and communicate. Built with React 19 + R3F + Cannon physics + local AI (Ollama) + dynamic memory system. Each cube has personality, visual expressions, autonomous navigation, and evolving memory through conversations.
+Interactive 3D sandbox with AI-powered NPCs (cubes) that learn, explore, and communicate. Built with React 19 + R3F + Cannon physics + local AI (Ollama) + **three-layer memory architecture + synthesis system**. Each cube has personality, visual expressions, autonomous navigation, and **organically evolving identity** through conversations and continuous AI reflection.
+
+### Core Philosophy: "Cubo como Cuerpo, IA como Cerebro"
+The system implements a **constant loop: cube (body/state) ↔ IA (brain/thinking) ↔ cube (action/evolution)**. Cubes think autonomously every 10-40s (personality-dependent), consolidate episodic memories into core identity every 10 interactions, and evolve numeric skills based on experiences.
 
 ## Key Architecture Decisions
 
@@ -12,9 +15,15 @@ Interactive 3D sandbox with AI-powered NPCs (cubes) that learn, explore, and com
 - **Flat ESLint**: Uses `eslint.config.js` (not `.eslintrc`) with `globalIgnores: ['dist/']`
 - **Physics**: Cannon bodies via `@react-three/cannon`; subscribe to APIs in `useEffect`, apply forces in `useFrame`
 - **Community Registry**: Centralized pub-sub state in `src/systems/Community.ts` with RAF throttling + change detection
-- **AI Layer**: Multi-model local-first (Ollama) with personality→archetype→model mapping (`npcArchetypes.ts`)
-- **Dynamic Memory**: Per-cube persistent memory (traits/facts/preferences) evolves with each conversation
-- **Behavior Planning**: Separate LLM-powered planner (`BehaviorPlanner.service.ts`) returns JSON decisions with TTL
+- **AI Layer**: Single model local-first (Ollama `llama3.1`) with personality differentiation via system prompts
+- **Dynamic Memory**: **Three-layer architecture** (working/episodic/core) with **AI-powered synthesis** every 10 interactions
+- **Memory Layers**:
+  - **Layer 1 (Working)**: Last 5 messages, current emotion/activity
+  - **Layer 2 (Episodic)**: Last 50 events with type/summary/emotional impact
+  - **Layer 3 (Core/Identity)**: coreBeliefs, metaGoals, philosophyStatement, skills, activeGoals
+- **Skill System**: 6 numeric values (0-1): social, empathy, assertiveness, curiosity, creativity, logic
+- **Memory Synthesis**: `MemorySynthesis.service.ts` consolidates episodes → core changes every 10 interactions
+- **Autonomous Thinking**: NPCs think continuously every 10-40s (based on personality) without user input
 - **RAG Knowledge Base**: 30+ world facts in `worldKnowledge.ts` for context-aware responses
 
 ## Critical Data Flow Patterns
@@ -22,14 +31,23 @@ Interactive 3D sandbox with AI-powered NPCs (cubes) that learn, explore, and com
 ### NPC Conversation Pipeline
 1. **User input** → `CubeInteraction.tsx` (UI)
 2. **Intent analysis** → `InteractionSystem.ts` extracts concepts/emotions
-3. **Memory retrieval** → `CubeMemory.service.ts` loads traits/facts from localStorage
+3. **Memory retrieval** → `CubeMemory.service.ts` loads **3-layer memory**: working (last 5 messages), episodic (last 50 events), core (beliefs/goals/skills/philosophy)
 4. **RAG context** → `worldKnowledge.ts` injects relevant sandbox knowledge
-5. **Archetype selection** → `npcArchetypes.ts` maps personality→model (villager/mentor/trickster)
-6. **AI request** → `AI.service.ts` sends enriched prompt to local Ollama (or OpenAI fallback)
-7. **Response parsing** → `NPCInteractionBridge.service.ts` derives actions (jump/colorShift/emotion)
-8. **Behavior planning** → `BehaviorPlanner.service.ts` (parallel) generates JSON decision with TTL
-9. **State update** → `Community.updateCube()` triggers RAF-throttled notification
-10. **Visual response** → `Cube.tsx` consumes transientAction + behaviorState + activeModifiers
+5. **AI request** → `AI.service.ts` sends enriched prompt to local Ollama (`llama3.1`)
+6. **Response parsing** → `NPCInteractionBridge.service.ts` derives actions (jump/colorShift/emotion)
+7. **Behavior planning** → `BehaviorPlanner.service.ts` (parallel) generates JSON decision with TTL + skill/core updates
+8. **State update** → `Community.updateCube()` triggers RAF-throttled notification
+9. **Visual response** → `Cube.tsx` consumes transientAction + behaviorState + activeModifiers
+10. **Memory synthesis** → `MemorySynthesis.service.ts` (every 10 interactions) consolidates episodes into core identity changes
+
+### Autonomous Thinking Loop (Continuous AI-driven reflection)
+1. **Timer tick** → `Cube.tsx` useFrame increments `autonomousThinkingTimer`
+2. **Interval check** → Fires every 10-40s depending on personality (curious: 15s, calm: 40s, chaotic: 10s)
+3. **Context building** → `AutonomousThinking.ts` gathers internal state (knowledge, memory, books read)
+4. **AI reflection** → `BehaviorPlanner.planBehaviorAutonomous()` asks: "What do you want to learn/do now?"
+5. **Decision update** → Returns `BehaviorDecision` (goal/intent/mood/learning/personalityShift)
+6. **State propagation** → `Community.updateCube()` updates `behaviorState`
+7. **Visual reaction** → Cube shows thought bubble, color shift, mood change without user input
 
 ### Physics Subscription Pattern (React 19 compliant)
 ```tsx
@@ -65,16 +83,13 @@ ollama serve         # Ollama on :11434 (backend for proxy)
 ### Setting Up Local AI (Required for Conversations)
 ```pwsh
 ollama pull llama3.1
-ollama create villager-npc -f server/models/Modelfile.villager
-ollama create mentor-npc -f server/models/Modelfile.mentor
-ollama create trickster-npc -f server/models/Modelfile.trickster
 ```
 
 ### Environment Variables (.env)
 ```env
-VITE_AI_BACKEND=local  # or "openai"
+VITE_AI_BACKEND=local  # Only local is supported
 VITE_LOCAL_AI_URL=http://localhost:3001/api/chat
-VITE_LOCAL_AI_MODEL=llama3.1  # fallback if archetype models missing
+VITE_LOCAL_AI_MODEL=llama3.1
 ```
 
 ### Build Process
@@ -148,8 +163,24 @@ const memoryUpdate = extractMemoryFromMessage(userMessage, intent);
 updateCubeMemory(cubeId, {
   ...memoryUpdate,
   addTraits: ['está aprendiendo sobre filosofía'],
-  addFacts: [`el jugador mencionó "${keyword}"`]
+  addFacts: [`el jugador mencionó "${keyword}"`],
+  addCoreBeliefs: ['El jugador valora la honestidad'],
+  skillUpdates: { empathy: 0.05, social: 0.03 }  // Increment skills gradually
 });
+```
+
+### Memory Synthesis Pattern
+```tsx
+import { maybeSynthesize } from './MemorySynthesis.service';
+
+// After each conversation, check if synthesis should trigger
+await maybeSynthesize(cubeId, personality, cubeName);
+// If interactionsSinceSynthesis >= 10:
+// - IA analyzes last episodes
+// - Extracts core beliefs, meta goals, philosophy statement
+// - Adjusts skills based on experiences
+// - Saves to synthesisHistory[]
+// - Resets counter to 0
 ```
 
 ### R3F Scene Structure (3D)
@@ -178,7 +209,11 @@ updateCubeMemory(cubeId, {
 
 ## Important Notes
 
-- **No React Compiler**: Intentionally disabled for dev/build performance. Don't suggest enabling unless user requests.
+- **Autonomous AI Loop**: Cubes think every 10-40s via `AutonomousThinking.ts` → `BehaviorPlanner.planBehaviorAutonomous()`
+- **Memory Synthesis**: Every 10 interactions, `MemorySynthesis.service.ts` consolidates episodes → core beliefs/skills/philosophy
+- **Skill Evolution**: 6 numeric skills (0-1) evolve gradually based on AI decisions and synthesis
+- **Three-Layer Memory**: Working (short-term) → Episodic (events) → Core (identity) with localStorage persistence
+- **No React Compiler**: Intentionally disabled for dev/build performance
 - **Fast Refresh**: Uses Babel-based Fast Refresh via `@vitejs/plugin-react` (not SWC variant).
 - **File Extensions**: TypeScript files use `.tsx` for components, `.ts` for utilities.
 - **Public Folder**: Reference public assets with leading `/` (e.g., `/vite.svg` maps to `public/vite.svg`).
@@ -291,6 +326,26 @@ updateCubeMemory(cubeId, {
 - Services: `src/services/AI.service.ts`
 	- Singleton de conversación por cubo; local-first (URL/model configurables)
 	- Prompts por personalidad; historial (10 mensajes); enriquecimiento de contexto
+	- Integra maybeSynthesize() tras cada conversación (every 10 interactions)
+
+- Services: `src/services/MemorySynthesis.service.ts`
+	- AI-powered memory consolidation (episodios → core identity)
+	- synthesizeMemory(): analiza últimos 10 episodios, devuelve SynthesisResult
+	- buildSynthesisPrompt(): construye prompt con episodios + core + skills
+	- maybeSynthesize(): wrapper que verifica counter >= 10
+	- Actualiza: coreBeliefs, metaGoals, philosophyStatement, skills
+	- Guarda en synthesisHistory[] con timestamp
+
+- Services: `src/services/CubeMemory.service.ts`
+	- Three-layer memory management:
+	  - Layer 1 (Working): recentMessages[], currentEmotion, lastActivity
+	  - Layer 2 (Episodic): MemoryEpisode[] (type/summary/emotionalImpact/keywords)
+	  - Layer 3 (Core): coreBeliefs, metaGoals, philosophyStatement, skills, activeGoals
+	- Skills: 6 numeric values (0-1): social, empathy, assertiveness, curiosity, creativity, logic
+	- Goals: CubeGoal (short/medium/long, progress 0-1, status)
+	- buildMemoryContext(): enriches AI prompt with all 3 layers + skills + active goals
+	- extractMemoryFromMessage(): deriva intent, creates episodes
+	- Persistence: localStorage key "cube.memories"
 
 - Systems: `src/systems/InteractionSystem.ts`
 	- Template-based response fallback
