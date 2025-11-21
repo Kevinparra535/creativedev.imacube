@@ -187,6 +187,12 @@ export default function Cube({
   const cubePos = useRef<[number, number, number]>([0, 0, 0]);
   const cubeVel = useRef<[number, number, number]>([0, 0, 0]);
   const isNavigating = useRef(false); // Track if actively navigating
+  // Passive reading proximity accumulator (must linger near book before reading)
+  const readingProximityAccum = useRef(0);
+  // Smooth wander steering (POC movement refinement)
+  const desiredDirRef = useRef<[number, number]>([0, 0]);
+  const desiredSpeedRef = useRef(0);
+  const nextWanderUpdateRef = useRef(0);
 
   const learningProgress = useRef({ navigation: 0, selfRighting: 0 });
   const observedBookMeta = useRef<{
@@ -488,67 +494,68 @@ export default function Cube({
 
   useFrame((state, delta) => {
         // ────────────────────────────────────────────────────────────────
-        // POC: Lectura simple de libros cercanos (incremento conocimiento + micro skills)
+        // POC: Lectura pasiva SOLO muy cerca del libro (dist < 4) y tras linger
         // ────────────────────────────────────────────────────────────────
-        if (bookTargets && bookTargets.length > 0) {
-          // Elegir libro más cercano dentro de radio
+        if (bookTargets && bookTargets.length > 0 && !isNavigating.current) {
           let nearest: typeof bookTargets[0] | null = null;
           let bestDist = Infinity;
           for (const b of bookTargets) {
-            const bx = b.object.position.x;
-            const bz = b.object.position.z;
-            const dx = bx - cubePos.current[0];
-            const dz = bz - cubePos.current[2];
-            const dist = Math.sqrt(dx*dx + dz*dz);
+            const dx = b.object.position.x - cubePos.current[0];
+            const dz = b.object.position.z - cubePos.current[2];
+            const dist = Math.sqrt(dx * dx + dz * dz);
             if (dist < bestDist) { bestDist = dist; nearest = b; }
           }
-          if (nearest && bestDist < 10) { // dentro de rango de lectura
-            // Progresar lectura
-            readingTick.current += delta;
-            if (readingTick.current > 1) { // cada ~1s aplicar efectos
-              readingTick.current = 0;
-              // Incremento básico de knowledge por dominio
-              const domain = nearest.domain || "literature";
-              const k = knowledge.current;
-              if (domain in k) {
-                // crecimiento lento
-                (k as any)[domain] = Math.min(100, (k as any)[domain] + 0.5);
-              }
-              // Micro incremento de skill según dominio
-              const skillUpdates: Record<string, number> = {};
-              switch (domain) {
-                case "philosophy": skillUpdates.curiosity = 0.004; skillUpdates.empathy = 0.003; break;
-                case "science": skillUpdates.logic = 0.005; skillUpdates.curiosity = 0.003; break;
-                case "literature": skillUpdates.creativity = 0.004; skillUpdates.empathy = 0.003; break;
-                case "art": skillUpdates.creativity = 0.005; break;
-                case "music": skillUpdates.creativity = 0.004; skillUpdates.social = 0.003; break;
-                case "theology": skillUpdates.empathy = 0.005; break;
-                case "math": skillUpdates.logic = 0.005; break;
-                case "technology": skillUpdates.logic = 0.004; skillUpdates.creativity = 0.002; break;
-              }
-              try {
-                const mem = updateCubeMemory(id, { skillUpdates, intent: "learning", currentActivity: "leyendo" });
-                memoryRef.current = mem;
-                updateCube(id, { knowledge: { ...knowledge.current }, skills: mem.skills });
-              } catch {}
-              // Pensamiento simple visual
-              setThought(`Leyendo ${domain}...`);
-              // Drift personalidad rudimentario
-              personalityDriftCounters.current[domain] = (personalityDriftCounters.current[domain] || 0) + 1;
-              const driftScore = personalityDriftCounters.current[domain];
-              if (driftScore > 12) { // tras suficiente exposición
-                let newPers: Personality | null = null;
-                if (domain === "philosophy" || domain === "theology") newPers = "calm";
-                else if (domain === "science" || domain === "math" || domain === "technology") newPers = "neutral";
-                else if (domain === "art" || domain === "music" || domain === "literature") newPers = "extrovert";
-                if (newPers && newPers !== currentPersonality) {
-                  setCurrentPersonality(newPers);
-                  updateCube(id, { personality: newPers });
-                  setThought(`Me siento más ${newPers}`);
-                  personalityDriftCounters.current[domain] = 0; // reset
+          const PASSIVE_READ_RADIUS = 4; // tighter radius
+          if (nearest && bestDist < PASSIVE_READ_RADIUS) {
+            readingProximityAccum.current += delta;
+            // Require linger 0.6s to start passive reading accumulation
+            if (readingProximityAccum.current > 0.6) {
+              readingTick.current += delta;
+              if (readingTick.current > 1) { // cada ~1s
+                readingTick.current = 0;
+                const domain = nearest.domain || "literature";
+                const k = knowledge.current;
+                if (domain in k) {
+                  (k as any)[domain] = Math.min(100, (k as any)[domain] + 0.35); // menor incremento
+                }
+                const skillUpdates: Record<string, number> = {};
+                switch (domain) {
+                  case "philosophy": skillUpdates.curiosity = 0.003; skillUpdates.empathy = 0.002; break;
+                  case "science": skillUpdates.logic = 0.004; skillUpdates.curiosity = 0.002; break;
+                  case "literature": skillUpdates.creativity = 0.003; skillUpdates.empathy = 0.002; break;
+                  case "art": skillUpdates.creativity = 0.004; break;
+                  case "music": skillUpdates.creativity = 0.003; skillUpdates.social = 0.002; break;
+                  case "theology": skillUpdates.empathy = 0.004; break;
+                  case "math": skillUpdates.logic = 0.004; break;
+                  case "technology": skillUpdates.logic = 0.003; skillUpdates.creativity = 0.001; break;
+                }
+                try {
+                  const mem = updateCubeMemory(id, { skillUpdates, intent: "learning", currentActivity: "leyendo" });
+                  memoryRef.current = mem;
+                  updateCube(id, { knowledge: { ...knowledge.current }, skills: mem.skills });
+                } catch {}
+                if (phase.current === "idle") setThought(`Leyendo cerca (${domain})`);
+                // Personalidad drift acumulado (más lento en pasivo)
+                personalityDriftCounters.current[domain] = (personalityDriftCounters.current[domain] || 0) + 1;
+                const driftScore = personalityDriftCounters.current[domain];
+                if (driftScore > 18) { // más exposición requerida
+                  let newPers: Personality | null = null;
+                  if (domain === "philosophy" || domain === "theology") newPers = "calm";
+                  else if (domain === "science" || domain === "math" || domain === "technology") newPers = "neutral";
+                  else if (domain === "art" || domain === "music" || domain === "literature") newPers = "extrovert";
+                  if (newPers && newPers !== currentPersonality) {
+                    setCurrentPersonality(newPers);
+                    updateCube(id, { personality: newPers });
+                    setThought(`Me siento más ${newPers}`);
+                    personalityDriftCounters.current[domain] = 0;
+                  }
                 }
               }
             }
+          } else {
+            // Reset accumulator when leaving radius
+            readingProximityAccum.current = 0;
+            readingTick.current = 0;
           }
         }
     // Transient Action Consumption (jump / colorShift / emphasisLight)
@@ -1201,7 +1208,10 @@ export default function Cube({
               quatRef.current[2],
               quatRef.current[3]
             );
-            const newQuat = slerpToTarget(currentQuat, targetQuat, 0.1);
+            // Delta-scaled turn speed for smoother rotation (personality based)
+            const turnRate = currentPersonality === "chaotic" ? 6 : currentPersonality === "extrovert" ? 5 : currentPersonality === "curious" ? 4 : currentPersonality === "calm" ? 3 : 4;
+            const slerpFactor = Math.min(1, turnRate * delta);
+            const newQuat = slerpToTarget(currentQuat, targetQuat, slerpFactor);
             api.quaternion.set(newQuat.x, newQuat.y, newQuat.z, newQuat.w);
           }
         }
@@ -1430,23 +1440,85 @@ export default function Cube({
     }
 
     // ────────────────────────────────────────────────────────────────
-    // MANUAL/AUTO HOP SYSTEM (original behavior)
+    // MANUAL/AUTO HOP SYSTEM (refined idle wandering)
     // ────────────────────────────────────────────────────────────────
     if (!auto) {
-      if (
-        selected &&
-        hopSignal !== lastHopSignal.current &&
-        phase.current === "idle"
-      ) {
+      if (selected && hopSignal !== lastHopSignal.current && phase.current === "idle") {
         lastHopSignal.current = hopSignal;
         phase.current = "squash";
         phaseStart.current = t;
-        targetScale.current = [1.25, 0.75, 1.25];
+        targetScale.current = [1.18, 0.78, 1.18];
       }
-    } else if (phase.current === "idle" && t >= nextHopAt.current) {
-      phase.current = "squash";
-      phaseStart.current = t;
-      targetScale.current = [1.25, 0.75, 1.25];
+    } else {
+      // Continuous wander steering (update desired direction every few seconds)
+      if (!isNavigating.current && phase.current === "idle") {
+        if (t >= nextWanderUpdateRef.current) {
+          nextWanderUpdateRef.current = t + (2.2 + Math.random() * 2.4); // 2.2 - 4.6s
+          const ang = Math.random() * Math.PI * 2;
+          const personalitySpeedMap: Record<string, number> = {
+            calm: 2.0,
+            neutral: 2.4,
+            curious: 2.6,
+            extrovert: 3.2,
+            chaotic: 3.5,
+          };
+          desiredDirRef.current = [Math.cos(ang), Math.sin(ang)];
+          desiredSpeedRef.current = personalitySpeedMap[currentPersonality] || 2.4;
+        }
+        // Apply steering force toward desired velocity
+        const vx = cubeVel.current[0];
+        const vz = cubeVel.current[2];
+        const targetVx = desiredDirRef.current[0] * desiredSpeedRef.current;
+        const targetVz = desiredDirRef.current[1] * desiredSpeedRef.current;
+        const accelFactor = 4.0; // smoothing constant
+        const fx = (targetVx - vx) * accelFactor;
+        const fz = (targetVz - vz) * accelFactor;
+        api.applyForce([fx * delta, 0, fz * delta], [0, 0, 0]);
+        // Occasional expressive hop (less frequent, personality scaled)
+        if (t >= nextHopAt.current) {
+          nextHopAt.current = t + (1.6 + Math.random() * 1.8);
+          phase.current = "squash";
+          phaseStart.current = t;
+          targetScale.current = [1.22, 0.8, 1.22];
+        }
+
+        // Yaw orientation toward movement direction (eyes = +Z forward)
+        // Skip if self-righting is actively correcting (uprightTarget set)
+        if (!uprightTarget.current) {
+          const speedXZ = Math.hypot(cubeVel.current[0], cubeVel.current[2]);
+          // Use velocity if moving sufficiently, else use desiredDir as intent
+            let yawSourceX: number;
+            let yawSourceZ: number;
+            if (speedXZ > 0.25) {
+              yawSourceX = cubeVel.current[0];
+              yawSourceZ = cubeVel.current[2];
+            } else {
+              yawSourceX = desiredDirRef.current[0];
+              yawSourceZ = desiredDirRef.current[1];
+            }
+            const len = Math.hypot(yawSourceX, yawSourceZ);
+            if (len > 0.001) {
+              const desiredYaw = Math.atan2(yawSourceX, yawSourceZ);
+              const currentQuat = tmpQ.current.set(
+                quatRef.current[0],
+                quatRef.current[1],
+                quatRef.current[2],
+                quatRef.current[3]
+              );
+              // Extract current yaw for smooth turning
+              const euler = tmpEuler.current.setFromQuaternion(currentQuat, "YXZ");
+              let yawNow = euler.y;
+              // Shortest angle interpolation
+              let deltaYaw = desiredYaw - yawNow;
+              while (deltaYaw > Math.PI) deltaYaw -= Math.PI * 2;
+              while (deltaYaw < -Math.PI) deltaYaw += Math.PI * 2;
+              const turnSpeed = currentPersonality === "chaotic" ? 6 : currentPersonality === "extrovert" ? 5 : currentPersonality === "curious" ? 4.5 : currentPersonality === "calm" ? 3 : 4;
+              yawNow += deltaYaw * Math.min(1, turnSpeed * delta);
+              const newQ = new Quaternion().setFromEuler(new Euler(0, yawNow, 0, "YXZ"));
+              api.quaternion.set(newQ.x, newQ.y, newQ.z, newQ.w);
+            }
+        }
+      }
     }
 
     if (phase.current === "squash" && t - phaseStart.current > 0.18) {
@@ -1718,30 +1790,7 @@ export default function Cube({
       qNow.slerp(desired, Math.min(1, 5 * delta)); // Faster turn toward mirror
     }
     // Face the camera gently when selected and idle-ish
-    else if (
-      selected &&
-      !isNavigating.current &&
-      (phase.current === "idle" ||
-        phase.current === "settle" ||
-        phase.current === "observing")
-    ) {
-      const cam = state.camera.position;
-      const [cx, , cz] = cubePos.current;
-      const dx = cam.x - cx;
-      const dz = cam.z - cz;
-      const yaw = Math.atan2(dx, dz);
-      const desired = new Quaternion().setFromEuler(
-        new Euler(0, yaw, 0, "YXZ")
-      );
-      const qNow = tmpQ.current.set(
-        quatRef.current[0],
-        quatRef.current[1],
-        quatRef.current[2],
-        quatRef.current[3]
-      );
-      qNow.slerp(desired, Math.min(1, 4 * delta));
-      api.quaternion.set(qNow.x, qNow.y, qNow.z, qNow.w);
-    }
+    // Removed automatic facing to camera when selected (simplifies orientation behavior)
 
     // Update material from visual targets each frame, including pulse emissive boost
     if (materialRef.current) {

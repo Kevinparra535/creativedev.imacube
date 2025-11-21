@@ -1,6 +1,6 @@
 # creativedev.imacube
 
-Interactive R3F sandbox with bouncy physics, thought bubbles, swappable cute eyes with eyebrows, personality-driven visuals, self-righting cubes, and a ReactFlow-powered knowledge graph UI.
+Minimal emergent learning POC: newborn cubes in a 3D sandbox that hop, explore, approach books, slowly accumulate domain knowledge, micro‑evolve six skills, and drift personality based on what they read. Focus is on organic incremental growth rather than deep cognitive layers.
 
 ## Stack
 
@@ -21,6 +21,27 @@ npm run build    # TypeScript build check + production build
 npm run preview  # Preview production build locally
 npm run lint     # Run ESLint on entire codebase
 ```
+
+## Minimal POC Scope
+
+Retained (Core Mechanics):
+- Autonomous hopping + simple target scanning (books / zones / cubes) with anti‑clumping steering.
+- Proximity book reading loop: every ~1s near a book adds tiny knowledge & skill increments.
+- Knowledge domains + recent concepts & reading experiences surfaced in footer graph.
+- Six micro skills (social, empathy, assertiveness, curiosity, creativity, logic) evolve via reading.
+- Personality drift: repeated exposure to domain families nudges personality (philosophy/theology → calm, science/math/technology → neutral, art/music/literature → extrovert).
+- Simplified memory: working + episodic (no synthesis). Skills propagated directly.
+- Optional local AI responses (simplified prompt) or template fallback.
+
+Removed (Complex Layers):
+- Memory synthesis service (episodic → core identity consolidation).
+- NPC interaction bridge / transient AI action parsing.
+- RAG world knowledge base (`worldKnowledge.ts`).
+- Multi‑model archetype switching (villager / mentor / trickster).
+- Deep identity fields (coreBeliefs/metaGoals/philosophyStatement evolution).
+- AI status panel UI (top‑right indicators).
+
+Reasoning: Early stage prototype prioritizes visible growth feedback (skills/knowledge/personality) with minimal surface area for bugs and faster iteration.
 
 ## Features
 
@@ -53,7 +74,7 @@ npm run lint     # Run ESLint on entire codebase
   - Emotional states: `happy`, `sad`, `angry`, `curious`
   - Personality-driven defaults: extroverts → happy, chaotic → angry, curious → curious
 
-### UI Components
+### UI Components (Updated)
 
 - **Chat Panel (CubeInteraction)**: Left aside (400px) for real-time conversations with selected cube.
   - **Personality-aware responses**: AI-powered via local backend (default) or template-based fallback; OpenAI optional.
@@ -68,7 +89,7 @@ npm run lint     # Run ESLint on entire codebase
   - **Conocimientos** (knowledge domains) - Philosophy, theology, science, arts, etc.
   - **Conceptos aprendidos** (learned concepts) - Last 6 concepts from reading (e.g., "Dios", "Fe", "Pecado")
   - Interactive nodes with animated edges, zoom/pan controls, and minimap
-- **AI Status Indicator (AIStatus)**: Top-right panel showing AI config status (local/disabled) and mode toggle (AI/Template).
+AI status panel removed in POC – AI auto‑enables if local backend initializes; otherwise templates are used silently.
 
 ### Learning & Knowledge System
 
@@ -87,18 +108,12 @@ npm run lint     # Run ESLint on entire codebase
 - **Anti-clumping**: Separation forces (inverse-square, 4.5m radius) and wall avoidance (±46u bounds).
 - **Social gating**: Only targets cubes >10u away to prevent clustering.
 
-### AI Conversation System
+### Simplified AI Conversation System (POC)
 
-- **Local-first**: Defaults to a local AI backend at `http://localhost:3001/api/chat` using `llama3.1` (configurable).
-- **Optional OpenAI**: Can switch to OpenAI if explicitly configured via env; otherwise uses templates when unavailable.
-- **Personality prompts**: 5 distinct system prompts (calm, extrovert, curious, chaotic, neutral).
-- **Context enrichment**: Sends user intent + learned concepts + emotional state to the API.
-- **Conversation history**: Maintains a 10-message history per cube for coherent dialogues.
-- **Status indicator**: Top-right panel shows AI configured status and mode toggle.
-
-- **Status indicator**: Top-right panel shows AI configured status and mode toggle.
-- **Dynamic memory**: Tracks traits, facts, and preferences that evolve with interactions (see `.docs/MEMORIA_DINAMICA.md`).
-- **RAG (Retrieval-Augmented Generation)**: Knowledge base with 30+ entries about sandbox lore, zones, physics, NPCs, and mechanics (see `.docs/RAG_SISTEMA.md`).
+- Local-first: attempts local backend (`VITE_LOCAL_AI_URL`) with minimal prompt (personality + recent messages + compact skills snapshot).
+- Fallback: template responses when backend unavailable; no UI toggle.
+- Personality prompts retained; removed world knowledge injection, action bridging, synthesis, deep identity fields.
+- Conversation history trimmed; memory remains lightweight (working + episodic).
 
 #### Local AI Setup with Ollama
 
@@ -190,47 +205,8 @@ VITE_OPENAI_MODEL=gpt-4o-mini
 
 For more details, see [`.docs/OLLAMA_SETUP.md`](.docs/OLLAMA_SETUP.md).
 
-#### NPC Archetypes (Multi-Model Setup)
-
-In addition to the original single `imacube` model, the AI layer now supports distinct Ollama models per NPC archetype. Each personality maps to an archetype, which maps to a specific local model name. This enables differentiated tone, depth, and behavioral priors without sacrificing shared memory/RAG context.
-
-Archetypes & mapping:
-
-| Personality        | Archetype  | Model Name     | Style Summary |
-|--------------------|------------|----------------|---------------|
-| calm, neutral      | villager   | `villager-npc` | Practical, grounded, concise |
-| curious, extrovert | mentor     | `mentor-npc`   | Reflective, explanatory, encouraging |
-| chaotic            | trickster  | `trickster-npc`| Playful, surprising, mischievous |
-
-Create the three models (each has its own `Modelfile` system prompt + params):
-
-```pwsh
-# From project root
-ollama create villager-npc  -f server/models/Modelfile.villager
-ollama create mentor-npc    -f server/models/Modelfile.mentor
-ollama create trickster-npc -f server/models/Modelfile.trickster
-```
-
-Test individually:
-
-```pwsh
-ollama run villager-npc    # Should respond plainly, practical focus
-ollama run mentor-npc      # Should be reflective and guiding
-ollama run trickster-npc   # Should be playful, surprising
-```
-
-Environment variable `VITE_LOCAL_AI_MODEL` now acts as a fallback; the runtime dynamically selects the archetype model in `AI.service.ts` based on personality each request. If a mapped model is missing, it falls back to the configured `VITE_LOCAL_AI_MODEL`.
-
-Fallback behavior summary:
-- If `villager-npc` (for calm/neutral) not found → use `VITE_LOCAL_AI_MODEL`.
-- If `mentor-npc` (for curious/extrovert) not found → fallback.
-- If `trickster-npc` (for chaotic) not found → fallback.
-
-To verify selection, inspect network payloads or add a temporary `console.log(chosenModel)` inside `src/services/AI.service.ts` local branch.
-
-Optional enhancement (not yet enabled): add explicit `archetype` field to each cube in `cubes.config.ts` to override personality→archetype mapping for edge cases (e.g., a calm cube using mentor style). Ask before implementing if needed.
-
-Transient action integration: AI responses can now trigger one-shot physical/visual effects (`jump`, `colorShift`, `lightPulse`). These are parsed by the interaction bridge, stored as `transientAction` in the community registry, and consumed once by the `Cube` component.
+### Removed Archetype / Action Systems
+Multi‑model archetypes, transient action parsing, and personality shift recipes were removed for simplicity. All personalities share the same base local model (or templates) in this POC.
 
 ## Key Files
 
@@ -248,12 +224,12 @@ Transient action integration: AI responses can now trigger one-shot physical/vis
 - `src/systems/AttentionSystem.ts` — Target scanning, interest calculation, boredom tracking.
 - `src/systems/NavigationSystem.ts` — Jump direction, orientation, arrival detection.
 - `src/systems/BookReadingSystem.ts` — Reading mechanics, knowledge mapping, concept tracking.
-- `src/services/AI.service.ts` — AI conversation management (local-first), personality prompts, context enrichment, RAG integration.
-- `src/services/CubeMemory.service.ts` — Dynamic memory system (traits, facts, preferences evolution).
+-- `src/services/AI.service.ts` — Simplified local-first AI (no RAG/archetypes/synthesis).
+-- `src/services/CubeMemory.service.ts` — Lightweight working + episodic memory + skill propagation.
 - `src/systems/InteractionSystem.ts` — Template-based response fallback, intent analysis.
 - `src/ui/scene/guidelines/instrucciones.ts` — Knowledge domains, personality directives, learning effects.
 - `src/data/booksLibrary.ts` — Book content with concepts, domains, psychological effects.
-- `src/data/worldKnowledge.ts` — RAG knowledge base (30+ entries: lore, zones, physics, NPCs, mechanics, emotions).
+-- (Removed) `src/data/worldKnowledge.ts` — RAG layer deprecated in POC.
 
 ### UI Components & Styles
 
@@ -261,7 +237,7 @@ Transient action integration: AI responses can now trigger one-shot physical/vis
 - `src/ui/components/CubeInteraction.tsx` — Chat panel (left aside, 400px).
 - `src/ui/components/CubeList.tsx` — Horizontal tabs (footer top).
 - `src/ui/components/CubeFooter.tsx` — Footer wrapper (tabs + ReactFlow graph).
-- `src/ui/components/AIStatus.tsx` — OpenAI status indicator (top-right).
+-- (Removed) `src/ui/components/AIStatus.tsx` — Status panel deleted.
 - `src/ui/styles/CubeInteraction.styles.ts` — Styled-components for chat panel.
 - `src/ui/styles/CubeList.styles.ts` — Styled-components for tabs.
 - `src/ui/styles/CubeFooter.styles.ts` — Styled-components for footer with ReactFlow theme.
@@ -351,7 +327,7 @@ The application is organized in three main areas:
     - Top-right: Last 6 learned concepts (🧩) as yellow badges
     - Active nodes: Highlighted with blue border and animated edges
 
-## Notes
+## Notes (Adjusted for POC)
 
 - `Outline.visibleEdgeColor` must be a number (e.g., `0xffffff`).
 - Keep R3F side-effects in `useFrame`; subscribe to Cannon APIs in `useEffect` and clean up.
@@ -359,9 +335,16 @@ The application is organized in three main areas:
 - Eyebrows use `boxGeometry` for horizontal orientation (not capsuleGeometry).
 - Don't access refs during render (React 19 purity); use state or move logic to effects.
 - Use `useState(() => ...)` initializer for random generation to satisfy React 19 purity.
-- **Anti-clumping**: Always apply separation forces in `useFrame` before navigation logic.
-- **Social targeting**: Filter cube targets by distance (>10u) to prevent clustering.
-- **Camera control**: Use Tab key for camera lock toggle (Space is reserved for chat input).
+- Anti‑clumping and social distance gating remain active.
+- Camera lock toggle (Tab) still available; absence of AI status panel is intentional.
+- Reading loop & personality drift are primary growth drivers.
+
+## Future Extensions (Post‑POC Ideas)
+- Reintroduce memory synthesis for core identity evolution.
+- Lightweight trait system surfaced in UI (badges).
+- Differentiated archetype model prompts once growth signals stable.
+- Event timeline panel (episodic memory visualization).
+- Subtle visual markers for domain specialization (edge glow colors).
 
 ## License
 

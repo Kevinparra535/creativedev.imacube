@@ -6,17 +6,8 @@
  */
 
 import type { Personality } from "../ui/components/CubeList";
-import type {
-  MessageIntent,
-  ExtractedConcepts,
-} from "../systems/InteractionSystem";
-import {
-  getCubeMemory,
-  buildMemoryContext,
-  updateCubeMemory,
-} from "./CubeMemory.service";
-import { deriveNPCActions, applyNPCActions } from "./NPCInteractionBridge.service";
-import { buildWorldKnowledgeContext } from "../data/worldKnowledge";
+import type { MessageIntent, ExtractedConcepts } from "../systems/InteractionSystem";
+import { getCubeMemory, updateCubeMemory } from "./CubeMemory.service";
 import { planBehavior } from "./BehaviorPlanner.service";
 // POC: se desactiva síntesis avanzada (MemorySynthesis) temporalmente.
 // import { maybeSynthesize } from "./MemorySynthesis.service";
@@ -193,15 +184,18 @@ IMPORTANTE:
 
       const history = this.conversationHistory.get(cubeId)!;
 
-      // **INTEGRACIÓN DE MEMORIA DINÁMICA**
-      // 1. Construir contexto de conocimiento del mundo (RAG)
-      const worldKnowledgeContext = buildWorldKnowledgeContext(message);
-
-      // 2. Obtener memoria del cubo y construir contexto adicional
+      // Obtener memoria del cubo (POC: usar solo working memory + skills resumidas)
       const memory = getCubeMemory(cubeId);
       let memoryContext = "";
       if (memory) {
-        memoryContext = buildMemoryContext(memory);
+        const wm = memory.workingMemory;
+        const recent = wm.recentMessages.slice(-3).join(" | ");
+        memoryContext = `[ESTADO]
+Personalidad: ${personality}
+Actividad: ${wm.lastActivity}
+Emoción: ${wm.currentEmotion}
+Últimos mensajes: ${recent}
+Skills: social ${(memory.skills.social*100).toFixed(0)}% / empathy ${(memory.skills.empathy*100).toFixed(0)}% / curiosity ${(memory.skills.curiosity*100).toFixed(0)}%`;
       }
 
       // Construir mensaje contextual con memoria
@@ -212,9 +206,6 @@ IMPORTANTE:
       );
 
       // Agregar conocimiento del mundo + memoria al contexto
-      if (worldKnowledgeContext) {
-        contextualMessage = `${worldKnowledgeContext}\n\n${contextualMessage}`;
-      }
       if (memoryContext) {
         contextualMessage = `${memoryContext}\n\n${contextualMessage}`;
       }
@@ -285,14 +276,6 @@ IMPORTANTE:
         } catch (memErr) {
           console.warn("Working memory update error:", memErr);
         }
-      }
-
-      // Derivar acciones expresivas / físicas (bridge)
-      try {
-        const actions = deriveNPCActions(aiResponse, memory || undefined);
-        applyNPCActions(cubeId, actions);
-      } catch (bridgeErr) {
-        console.warn("NPCInteractionBridge error:", bridgeErr);
       }
 
       // Planificar comportamiento (best-effort; no bloquear si falla)

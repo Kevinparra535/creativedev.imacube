@@ -3,14 +3,12 @@ import R3FCanvas from "./scene/R3FCanvas";
 import { GlobalStyles } from "./styles/base";
 import CubeFooter from "./components/CubeFooter";
 import CubeInteraction from "./components/CubeInteraction";
-import AIStatus from "./components/AIStatus";
 import { CubeEditor } from "./components/CubeEditor";
 import {
   loadCubesFromStorage,
   addCubeToStorage,
   isFirstTimeUser,
   initializeEnvironment,
-  clearCubesStorage,
 } from "../utils/cubeStorage";
 import type { CubeData } from "./components/CubeList";
 import { useCommunityCubes } from "./hooks/useCommunityStore";
@@ -61,7 +59,6 @@ function App() {
     return saved ? JSON.parse(saved) : false;
   });
 
-  const [aiConfigured, setAiConfigured] = useState(false);
 
   // Tracking de uso
   const [messageCount, setMessageCount] = useState(() => {
@@ -124,12 +121,10 @@ function App() {
     try {
       initializeAI();
       setUseAI(true);
-      setAiConfigured(true);
       console.log("✅ IA local inicializada correctamente");
     } catch (error) {
       console.error("❌ Error inicializando IA local:", error);
       setUseAI(false);
-      setAiConfigured(false);
     }
 
     // **Inicializar memoria dinámica para todos los cubos existentes**
@@ -150,9 +145,13 @@ function App() {
         ...c,
         position: found?.position ?? c.position,
         personality: found?.personality ?? c.personality,
-        // Attach capabilities and active modifiers if available
+        // Estado público adicional para visualizaciones POC
         capabilities: found?.capabilities,
         activeModifiers: found?.activeModifiers || [],
+        learningProgress: found?.learningProgress,
+        knowledge: found?.knowledge,
+        skills: found?.skills,
+        readingExperiences: found?.readingExperiences,
       };
     });
   }, [live, dynamicCubes]);
@@ -352,11 +351,7 @@ function App() {
   );
 
   // Handler to reset all cubes
-  const handleReset = useCallback(() => {
-    clearCubesStorage();
-    // Reload page to reinitialize
-    window.location.reload();
-  }, []);
+  // Reinicio global eliminado del POC (se removió panel de estado)
 
   return (
     <>
@@ -391,13 +386,7 @@ function App() {
         selectedId={selectedId}
         onSelect={handleCubeSelect}
       />
-      <AIStatus
-        isConfigured={aiConfigured}
-        isEnabled={useAI}
-        onToggle={setUseAI}
-        messageCount={messageCount}
-        onReset={handleReset}
-      />
+      {/* AIStatus removido en POC minimal; lógica de IA permanece activa */}
     </>
   );
 }
