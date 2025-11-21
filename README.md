@@ -1,8 +1,32 @@
 # creativedev.imacube
 
+![Hero](docs/image.png)
+
+> "Cubo como Cuerpo, IA como Cerebro" – Embodied minimal AI sandbox.
+
 Minimal emergent learning POC: newborn cubes in a 3D sandbox that hop, explore, approach books, slowly accumulate domain knowledge, micro‑evolve six skills, and drift personality based on what they read. Focus is on organic incremental growth rather than deep cognitive layers.
 
-## Stack
+## Table of Contents
+
+1. Manifesto & Principles
+2. Stack
+3. Quick Start
+4. POC Scope
+5. Core Loops Overview
+6. Skills & Personality Drift
+7. Features & Systems
+8. Key Files
+9. Visual System
+10. Controls & Layout
+11. Notes & Conventions
+12. Future Extensions
+13. License
+
+### 1. Manifesto & Principles
+
+See `docs/MANIFESTO.md` for creative rationale: embodied emergence, slow skill accretion, visual honesty, local‑first autonomy, iterative extension.
+
+### 2. Stack
 
 - React 19 + TypeScript 5 + Vite (with `rolldown-vite` override)
 - React Three Fiber + Drei + Postprocessing
@@ -12,7 +36,7 @@ Minimal emergent learning POC: newborn cubes in a 3D sandbox that hop, explore, 
 - Flat ESLint, strict TS, ESM-only
 - Local AI backend (default) with optional OpenAI fallback
 
-## Quick Start
+### 3. Quick Start
 
 ```pwsh
 npm install
@@ -22,7 +46,7 @@ npm run preview  # Preview production build locally
 npm run lint     # Run ESLint on entire codebase
 ```
 
-## Minimal POC Scope
+### 4. POC Scope
 
 Retained (Core Mechanics):
 - Autonomous hopping + simple target scanning (books / zones / cubes) with anti‑clumping steering.
@@ -43,9 +67,25 @@ Removed (Complex Layers):
 
 Reasoning: Early stage prototype prioritizes visible growth feedback (skills/knowledge/personality) with minimal surface area for bugs and faster iteration.
 
-## Features
+### 5. Core Loops Overview
 
-### 3D Physics Sandbox
+| Loop | Trigger | Result |
+|------|---------|--------|
+| Wander | Idle frame | Steering + occasional expressive hop |
+| Navigation | Attention target chosen | Directed jumps until arrival |
+| Passive Reading | Linger <4u near book | Micro knowledge + skills |
+| Active Reading | Book accepted | Emotions, concepts, capability progress |
+| Self-Righting | Tilt > threshold | Orientation correction & learning |
+| Autonomous Thinking | Timed interval | Reflective mood/intent update |
+| Conversation | User message | Personality-aware response + memory update |
+
+### 6. Skills & Personality Drift
+
+Six skills (0–1): social, empathy, assertiveness, curiosity, creativity, logic. Updated in tiny deltas (≤0.005). Domain exposure maps to personality drift: philosophy/theology → calm; science/math/technology → neutral; art/music/literature → extrovert.
+
+### 7. Features & Systems
+
+#### 3D Physics Sandbox
 
 - **Sandbox box**: 6 `Plane` colliders forming a closed room; cubes inside.
 - **Bouncy physics**: tuned restitution/friction for a "gel-like" feel.
@@ -59,7 +99,7 @@ Reasoning: Early stage prototype prioritizes visible growth feedback (skills/kno
 - **Squash & stretch**: pre-jump, in-air, and landing scale phases.
 - **Self-righting**: detects tilt and re-orients upright (preserving yaw) with a gentle correction hop.
 
-### Visual Expression System
+#### Visual Expression System
 
 - **Thought bubbles**: Html overlays with cartoon styling and per-cube badge.
 - **Swappable eyes**: `BubbleEyes` (whites+iris+pupil+spark) or `DotEyes` (minimal) via prop.
@@ -74,7 +114,7 @@ Reasoning: Early stage prototype prioritizes visible growth feedback (skills/kno
   - Emotional states: `happy`, `sad`, `angry`, `curious`
   - Personality-driven defaults: extroverts → happy, chaotic → angry, curious → curious
 
-### UI Components (Updated)
+#### UI Components (Updated)
 
 - **Chat Panel (CubeInteraction)**: Left aside (400px) for real-time conversations with selected cube.
   - **Personality-aware responses**: AI-powered via local backend (default) or template-based fallback; OpenAI optional.
@@ -91,7 +131,7 @@ Reasoning: Early stage prototype prioritizes visible growth feedback (skills/kno
   - Interactive nodes with animated edges, zoom/pan controls, and minimap
 AI status panel removed in POC – AI auto‑enables if local backend initializes; otherwise templates are used silently.
 
-### Learning & Knowledge System
+#### Learning & Knowledge System
 
 - **Book reading**: Cubes can navigate to and read physical books in the sandbox.
 - **Knowledge domains**: Philosophy, theology, science, arts, history, literature, mathematics, psychology.
@@ -100,7 +140,7 @@ AI status panel removed in POC – AI auto‑enables if local backend initialize
 - **Community registry**: Centralized state with pub-sub pattern, RAF throttling, multi-property change detection.
 - **Visual feedback**: Point light pulses on book completion, emissive boost for achievements.
 
-### Exploration & Navigation
+#### Exploration & Navigation
 
 - **Attention system**: Scans for targets (books, cubes, mirrors, ambient zones) with personality-driven interest weights.
 - **Boredom tracking**: Remembers visited targets, gets bored based on personality (chaotic: 4s, calm: 15s).
@@ -108,7 +148,7 @@ AI status panel removed in POC – AI auto‑enables if local backend initialize
 - **Anti-clumping**: Separation forces (inverse-square, 4.5m radius) and wall avoidance (±46u bounds).
 - **Social gating**: Only targets cubes >10u away to prevent clustering.
 
-### Simplified AI Conversation System (POC)
+#### Simplified AI Conversation System (POC)
 
 - Local-first: attempts local backend (`VITE_LOCAL_AI_URL`) with minimal prompt (personality + recent messages + compact skills snapshot).
 - Fallback: template responses when backend unavailable; no UI toggle.
@@ -205,10 +245,12 @@ VITE_OPENAI_MODEL=gpt-4o-mini
 
 For more details, see [`.docs/OLLAMA_SETUP.md`](.docs/OLLAMA_SETUP.md).
 
-### Removed Archetype / Action Systems
+
+#### Removed Archetype / Action Systems
+
 Multi‑model archetypes, transient action parsing, and personality shift recipes were removed for simplicity. All personalities share the same base local model (or templates) in this POC.
 
-## Key Files
+### 8. Key Files
 
 ### 3D Scene
 
@@ -245,7 +287,7 @@ Multi‑model archetypes, transient action parsing, and personality shift recipe
 - `src/ui/styles/base.ts` — Global styles.
 - `src/ui/styles/ThoughtBubble.css` — Cartoon bubble styles (legacy CSS).
 
-## Visual System
+### 9. Visual System
 
 ### Personality Types
 
@@ -292,7 +334,7 @@ Eyebrow mappings:
 <Cube id="B" position={[1, 0.5, 0]} personality="extrovert" eyeStyle="dot" auto={true} />
 ```
 
-## Controls
+### 10. Controls & Layout
 
 - **Hover** to highlight a cube
 - **Click** a cube to select (updates chat panel and footer)
@@ -303,7 +345,7 @@ Eyebrow mappings:
 - **Footer tabs**: Click to switch between cubes
 - **ReactFlow graph**: Drag nodes, zoom/pan, use controls
 
-## UI Layout
+#### UI Layout
 
 The application is organized in three main areas:
 
@@ -327,7 +369,7 @@ The application is organized in three main areas:
     - Top-right: Last 6 learned concepts (🧩) as yellow badges
     - Active nodes: Highlighted with blue border and animated edges
 
-## Notes (Adjusted for POC)
+### 11. Notes & Conventions (Adjusted for POC)
 
 - `Outline.visibleEdgeColor` must be a number (e.g., `0xffffff`).
 - Keep R3F side-effects in `useFrame`; subscribe to Cannon APIs in `useEffect` and clean up.
@@ -339,13 +381,14 @@ The application is organized in three main areas:
 - Camera lock toggle (Tab) still available; absence of AI status panel is intentional.
 - Reading loop & personality drift are primary growth drivers.
 
-## Future Extensions (Post‑POC Ideas)
+### 12. Future Extensions
+
 - Reintroduce memory synthesis for core identity evolution.
 - Lightweight trait system surfaced in UI (badges).
 - Differentiated archetype model prompts once growth signals stable.
 - Event timeline panel (episodic memory visualization).
 - Subtle visual markers for domain specialization (edge glow colors).
 
-## License
+### 13. License
 
 This project is for learning/demonstration. No license specified.
